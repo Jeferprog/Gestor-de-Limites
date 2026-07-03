@@ -93,8 +93,8 @@
         </div>
         <div class="flex items-center gap-6">
           <div class="flex flex-col items-end">
-            <span class="text-sm font-bold text-primary">Agência 0632</span>
-            <span class="text-[10px] text-gray-500 uppercase font-medium">Ciclo 2024</span>
+            <span class="text-sm font-bold text-primary" id="user-agencia">Agência —</span>
+            <span class="text-[10px] text-gray-500 uppercase font-medium" id="user-escopo">Ciclo 2024</span>
           </div>
           <div class="w-10 h-10 rounded-full border bg-gray-200 overflow-hidden flex items-center justify-center text-primary font-bold">
             ADM
@@ -110,7 +110,15 @@
 
       <!-- Content Views -->
       <div id="content" class="hidden p-8 max-w-[1250px] w-full mx-auto space-y-8">
-        
+
+        <!-- Aviso de acesso (colaborador não cadastrado / sem e-mail) -->
+        <div id="access-banner" class="hidden bg-error-container text-on-error-container border border-on-error-container/20 rounded-lg px-5 py-4 text-sm">
+          <div class="flex items-start gap-3">
+            <span class="material-symbols-outlined">lock</span>
+            <div id="access-banner-text" class="font-medium"></div>
+          </div>
+        </div>
+
         <!-- Tab: Visão Geral -->
         <div id="tab-visao-geral" class="space-y-8">
           <div class="mb-4">
@@ -440,7 +448,47 @@
       document.getElementById('content').classList.remove('hidden');
     }
 
+    // Exibe a agência/escopo do colaborador logado e avisos de acesso
+    function renderUsuario() {
+      const u = appData.usuario;
+      const agenciaEl = document.getElementById('user-agencia');
+      const escopoEl = document.getElementById('user-escopo');
+      const banner = document.getElementById('access-banner');
+      const bannerText = document.getElementById('access-banner-text');
+
+      banner.classList.add('hidden');
+
+      if (!u) { // modo demonstração local, sem controle de acesso
+        agenciaEl.innerText = 'Agência —';
+        escopoEl.innerText = 'Modo demonstração';
+        return;
+      }
+
+      if (!u.email) {
+        agenciaEl.innerText = 'Usuário não identificado';
+        escopoEl.innerText = 'Acesso restrito';
+        bannerText.innerHTML = 'Não foi possível identificar seu e-mail corporativo. Confirme se a implantação do Web App restringe o acesso ao domínio. Nenhum associado é exibido até a identificação.';
+        banner.classList.remove('hidden');
+        return;
+      }
+
+      if (u.isSede) {
+        agenciaEl.innerText = 'SEDE';
+        escopoEl.innerText = 'Acesso total';
+      } else if (u.cadastrado) {
+        agenciaEl.innerText = 'Agência ' + u.agencia;
+        escopoEl.innerText = u.email;
+      } else {
+        agenciaEl.innerText = 'Sem agência';
+        escopoEl.innerText = u.email;
+        bannerText.innerHTML = 'Seu e-mail (<strong>' + u.email + '</strong>) não está cadastrado na aba <strong>Colaboradores</strong>. Solicite o cadastro (e-mail + agência) para visualizar os associados da sua agência.';
+        banner.classList.remove('hidden');
+      }
+    }
+
     function renderAll() {
+      renderUsuario();
+
       document.getElementById('kpi-total-pendente').innerText = formatCurrency(appData.estatisticas.totalPendente);
       document.getElementById('kpi-limite-conta').innerText = formatCurrency(appData.estatisticas.limiteContaTotal);
 

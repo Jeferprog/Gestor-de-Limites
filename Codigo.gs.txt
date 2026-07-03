@@ -30,19 +30,19 @@ function inicializarPlanilha() {
   if (!shAssociados) {
     shAssociados = ss.insertSheet("Associados");
     shAssociados.appendRow([
-      "ID", "Nome", "CPF/CNPJ", "Conta", "Limite Atual", "Sugestão Motor", 
-      "Status", "Renda Comprovada", "Comprometimento SCR", "Score", 
-      "Inadimplência Dias", "Tempo Associado (Anos)", "Justificativa", "Novo Limite Confirmado"
+      "ID", "Nome", "CPF/CNPJ", "Conta", "Limite Atual", "Sugestão Motor",
+      "Status", "Renda Comprovada", "Comprometimento SCR", "Score",
+      "Inadimplência Dias", "Tempo Associado (Anos)", "Justificativa", "Novo Limite Confirmado", "Agência"
     ]);
     // Adicionar dados iniciais
-    shAssociados.appendRow(["ASC-001", "RICARDO ALMEIDA SANTOS", "123.456.789-00", "10293-4", 18500, 25000, "AGUARDANDO", 15450, 35, 845, 0, 12, "", ""]);
-    shAssociados.appendRow(["ASC-002", "CLAUDIA REGINA SILVA", "012.345.678-98", "12.456-7", 15000, 25000, "AGUARDANDO", 9800, 18, 780, 0, 4, "", ""]);
-    shAssociados.appendRow(["ASC-003", "AGROINDUSTRIA VERDE LTDA", "04.567.890/0001-44", "24.111-0", 450000, 600000, "CRÍTICO", 180000, 55, 910, 0, 8, "", ""]);
-    shAssociados.appendRow(["ASC-004", "COOPERATIVA AGROPECUÁRIA DO SUL", "10.987.654/0001-32", "31.222-1", 800000, 1200000, "ANÁLISE", 350000, 42, 950, 0, 15, "", ""]);
-    shAssociados.appendRow(["ASC-005", "MARCOS AURÉLIO SOUZA", "432.109.876-54", "19.823-2", 8000, 12000, "APROVADO", 6200, 22, 710, 0, 2, "Aprovado via sistema", 12000]);
-    
+    shAssociados.appendRow(["ASC-001", "RICARDO ALMEIDA SANTOS", "123.456.789-00", "10293-4", 18500, 25000, "AGUARDANDO", 15450, 35, 845, 0, 12, "", "", "0632"]);
+    shAssociados.appendRow(["ASC-002", "CLAUDIA REGINA SILVA", "012.345.678-98", "12.456-7", 15000, 25000, "AGUARDANDO", 9800, 18, 780, 0, 4, "", "", "0632"]);
+    shAssociados.appendRow(["ASC-003", "AGROINDUSTRIA VERDE LTDA", "04.567.890/0001-44", "24.111-0", 450000, 600000, "CRÍTICO", 180000, 55, 910, 0, 8, "", "", "0101"]);
+    shAssociados.appendRow(["ASC-004", "COOPERATIVA AGROPECUÁRIA DO SUL", "10.987.654/0001-32", "31.222-1", 800000, 1200000, "ANÁLISE", 350000, 42, 950, 0, 15, "", "", "0101"]);
+    shAssociados.appendRow(["ASC-005", "MARCOS AURÉLIO SOUZA", "432.109.876-54", "19.823-2", 8000, 12000, "APROVADO", 6200, 22, 710, 0, 2, "Aprovado via sistema", 12000, "0632"]);
+
     // Auto-ajusta largura das colunas
-    shAssociados.autoResizeColumns(1, 14);
+    shAssociados.autoResizeColumns(1, 15);
   }
   
   // 2. Aba de Uploads (Histórico de Arquivos)
@@ -70,6 +70,25 @@ function inicializarPlanilha() {
     shProtocolos.autoResizeColumns(1, 6);
   }
   
+  // 4. Aba de Colaboradores (controle de acesso por agência)
+  var shColab = ss.getSheetByName("Colaboradores");
+  if (!shColab) {
+    shColab = ss.insertSheet("Colaboradores");
+    shColab.appendRow(["Email", "Nome", "Agência"]);
+    // O usuário que implantar/abrir primeiro entra como SEDE (acesso total),
+    // evitando que fique sem acesso durante a configuração inicial.
+    var emailAtual = "";
+    try { emailAtual = Session.getActiveUser().getEmail() || ""; } catch (e) { emailAtual = ""; }
+    if (emailAtual) {
+      shColab.appendRow([emailAtual, "Administrador (você)", "SEDE"]);
+    }
+    shColab.appendRow(["gerente.exemplo@cresol.com.br", "Gerente Exemplo Ag. 0632", "0632"]);
+    shColab.autoResizeColumns(1, 3);
+  }
+
+  // Garante a coluna Agência mesmo em planilhas já existentes (migração)
+  garantirColunaAgencia();
+
   // Remove a aba padrão Sheet1 se houver mais abas criadas
   var defaultSheet = ss.getSheetByName("Sheet1") || ss.getSheetByName("Página1");
   if (defaultSheet && ss.getSheets().length > 1) {
@@ -85,7 +104,10 @@ function obterDadosCompletos() {
     inicializarPlanilha();
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. Carrega Associados
+    // Identifica o colaborador logado e sua agência (controle de acesso)
+    var usuario = obterUsuarioAtual();
+
+    // 1. Carrega Associados (coluna Agência = índice 14)
     var shAssociados = ss.getSheetByName("Associados");
     var dadosAssociados = shAssociados.getDataRange().getValues();
     var associados = [];
@@ -105,8 +127,24 @@ function obterDadosCompletos() {
         inadimplenciaDias: Number(r[10]) || 0,
         tempoAssociadoAnos: Number(r[11]) || 0,
         justificativa: r[12] || "",
-        novoLimiteConfirmado: r[13] ? Number(r[13]) : null
+        novoLimiteConfirmado: r[13] ? Number(r[13]) : null,
+        agencia: String(r[14] || "").trim()
       });
+    }
+
+    // Aplica o filtro por agência:
+    // - SEDE: vê todos os associados
+    // - agência específica: vê apenas os da sua agência
+    // - não cadastrado: não vê nenhum associado
+    if (!usuario.isSede) {
+      if (usuario.cadastrado) {
+        var agUsuario = normalizarCol(usuario.agencia);
+        associados = associados.filter(function(a) {
+          return normalizarCol(a.agencia) === agUsuario;
+        });
+      } else {
+        associados = [];
+      }
     }
 
     // 2. Carrega Uploads
@@ -156,6 +194,7 @@ function obterDadosCompletos() {
     });
 
     return {
+      usuario: usuario,
       associados: associados,
       uploads: uploads.reverse(), // Ordena mais novos primeiro
       protocolos: protocolos,
@@ -310,7 +349,8 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     var idxComprometimento = -1;
     var idxLimiteCresol = -1;
     var idxSugestao = -1;
-    
+    var idxAgencia = -1;
+
     cabecalho.forEach(function(c, idx) {
       var cLimpo = normalizarCol(c);
       if (cLimpo === "documento") idxDoc = idx;
@@ -321,8 +361,11 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
       else if (cLimpo === "compromet. renda") idxComprometimento = idx;
       else if (cLimpo.indexOf("limite cresol") !== -1) idxLimiteCresol = idx;
       else if (cLimpo.indexOf("sugestao limite") !== -1) idxSugestao = idx;
+      else if (cLimpo === "agencia") idxAgencia = idx;
     });
-    
+
+    // Garante a coluna Agência na aba Associados e obtém sua posição (1-based)
+    var colAgencia = garantirColunaAgencia();
     var shAssociados = ss.getSheetByName("Associados");
     var dadosExistem = shAssociados.getDataRange().getValues();
     var cpfsExistentes = {};
@@ -351,12 +394,13 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
       var comprometimento = parseFloat(colunas[idxComprometimento]) || 25;
       var limiteAtual = parseDinheiro(colunas[idxLimiteCresol]);
       var sugestao = parseDinheiro(colunas[idxSugestao]);
-      
+      var agencia = (idxAgencia !== -1) ? String(colunas[idxAgencia] || "").trim() : "";
+
       if (!doc || !nome) continue;
-      
+
       registrosProcessados++;
       var docFormatado = String(doc).trim();
-      
+
       if (cpfsExistentes[docFormatado]) {
         var l = cpfsExistentes[docFormatado];
         shAssociados.getRange(l, 2).setValue(nome);
@@ -367,12 +411,17 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
         shAssociados.getRange(l, 8).setValue(renda);
         shAssociados.getRange(l, 9).setValue(comprometimento);
         shAssociados.getRange(l, 10).setValue(score);
+        if (agencia) shAssociados.getRange(l, colAgencia).setValue(agencia);
       } else {
         var novoId = "ASC-" + String(shAssociados.getLastRow() + 1).padStart(3, '0');
-        shAssociados.appendRow([
-          novoId, nome, docFormatado, conta, limiteAtual, sugestao, 
+        var novaLinha = [
+          novoId, nome, docFormatado, conta, limiteAtual, sugestao,
           "AGUARDANDO", renda, comprometimento, score, 0, 3, "", ""
-        ]);
+        ];
+        // Preenche até a coluna de Agência (posiciona a agência na coluna correta)
+        while (novaLinha.length < colAgencia - 1) novaLinha.push("");
+        novaLinha[colAgencia - 1] = agencia;
+        shAssociados.appendRow(novaLinha);
       }
     }
     
@@ -382,6 +431,49 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     registrarUpload(nomeArquivo, tipoLista, 0, "Erro no Layout", err.toString());
     return { success: false, error: err.toString() };
   }
+}
+
+// Identifica o colaborador logado (via conta Google) e sua agência na aba Colaboradores
+function obterUsuarioAtual() {
+  var resultado = { email: "", agencia: "", isSede: false, cadastrado: false };
+  try {
+    resultado.email = Session.getActiveUser().getEmail() || "";
+  } catch (e) {
+    resultado.email = "";
+  }
+  var emailNorm = String(resultado.email).trim().toLowerCase();
+  if (!emailNorm) return resultado; // e-mail indisponível nesta implantação
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Colaboradores");
+  if (!sh) return resultado;
+
+  var dados = sh.getDataRange().getValues();
+  for (var i = 1; i < dados.length; i++) {
+    var e = String(dados[i][0] || "").trim().toLowerCase();
+    if (e && e === emailNorm) {
+      resultado.agencia = String(dados[i][2] || "").trim();
+      resultado.cadastrado = true;
+      resultado.isSede = normalizarCol(resultado.agencia).indexOf("sede") !== -1;
+      break;
+    }
+  }
+  return resultado;
+}
+
+// Garante que a aba Associados possua a coluna "Agência"; retorna a posição (1-based)
+function garantirColunaAgencia() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Associados");
+  if (!sh) return -1;
+  var lastCol = sh.getLastColumn();
+  var header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (var i = 0; i < header.length; i++) {
+    if (normalizarCol(header[i]) === "agencia") return i + 1;
+  }
+  var novaCol = lastCol + 1;
+  sh.getRange(1, novaCol).setValue("Agência");
+  return novaCol;
 }
 
 // Detecta o delimitador do CSV/TSV escolhendo o separador mais frequente no cabeçalho
