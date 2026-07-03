@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Cresol Gestão de Limites</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#004232",
+            "secondary": "#f58220",
+            "secondary-container": "#ffdcc6",
+            "on-secondary-container": "#642f00",
+            "background": "#f7faf9",
+            "surface-container": "#ebeeed",
+            "surface-container-low": "#f1f4f3",
+            "surface-container-lowest": "#ffffff",
+            "outline-variant": "#bec9c3",
+            "status-badge-bg": "#fff3e0",
+            "table-zebra": "#f8fafc",
+            "error-container": "#ffdad6",
+            "on-error-container": "#93000a"
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    body { font-family: 'Roboto', sans-serif; }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body class="bg-background text-gray-900 min-h-screen flex">
+
+  <div id="app" class="w-full flex">
+    <!-- Sidebar -->
+    <aside class="fixed left-0 top-0 bottom-0 flex flex-col p-4 z-50 bg-surface-container border-r border-outline-variant w-64">
+      <div class="mb-8 px-4 flex items-center gap-3">
+        <div class="w-10 h-10 bg-primary flex items-center justify-center rounded-lg shadow-sm">
+          <span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">account_balance</span>
+        </div>
+        <div>
+          <h1 class="text-xl font-black text-primary leading-tight">Cresol</h1>
+          <p class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Gestão de Crédito</p>
+        </div>
+      </div>
+      
+      <nav class="flex-1 space-y-1">
+        <button onclick="setTab('visao-geral')" id="btn-visao-geral" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
+          <span class="material-symbols-outlined">dashboard</span>
+          <span class="text-sm font-medium">Visão Geral</span>
+        </button>
+        <button onclick="setTab('upload-listas')" id="btn-upload-listas" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
+          <span class="material-symbols-outlined">upload_file</span>
+          <span class="text-sm font-medium">Upload de Listas</span>
+        </button>
+        <button onclick="setTab('gestao-limites')" id="btn-gestao-limites" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
+          <span class="material-symbols-outlined">format_list_bulleted</span>
+          <span class="text-sm font-medium">Gestão de Limites</span>
+        </button>
+      </nav>
+
+      <div class="mt-auto border-t border-outline-variant pt-4 space-y-1">
+        <button onclick="openNewProtocolModal()" class="w-full bg-secondary text-white font-bold py-3 rounded-lg hover:brightness-95 transition-all flex items-center justify-center gap-2 mb-4">
+          <span class="material-symbols-outlined">add_circle</span>
+          Novo Protocolo
+        </button>
+        <div class="p-2 text-xs text-gray-500 bg-gray-100 rounded text-center border">
+          <p class="font-bold">Planilha:</p>
+          <p class="truncate" id="sheet-title-info">Google Sheets Ativa</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="ml-64 flex-1 flex flex-col min-h-screen pb-12">
+      <!-- Top Bar -->
+      <header class="sticky top-0 z-40 flex items-center justify-between px-8 h-16 bg-surface-container-lowest border-b border-outline-variant shadow-sm">
+        <div class="flex items-center gap-4">
+          <span class="text-lg font-bold text-primary" id="current-tab-title">Cresol Gestão de Limites</span>
+        </div>
+        <div class="flex items-center gap-6">
+          <div class="flex flex-col items-end">
+            <span class="text-sm font-bold text-primary">Agência 0632</span>
+            <span class="text-[10px] text-gray-500 uppercase font-medium">Ciclo 2024</span>
+          </div>
+          <div class="w-10 h-10 rounded-full border bg-gray-200 overflow-hidden flex items-center justify-center text-primary font-bold">
+            ADM
+          </div>
+        </div>
+      </header>
+
+      <!-- Loading State -->
+      <div id="loading" class="flex-1 flex flex-col items-center justify-center p-12">
+        <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <p class="mt-4 font-bold text-primary">Conectando ao Google Sheets...</p>
+      </div>
+
+      <!-- Content Views -->
+      <div id="content" class="hidden p-8 max-w-[1250px] w-full mx-auto space-y-8">
+        
+        <!-- Tab: Visão Geral -->
+        <div id="tab-visao-geral" class="space-y-8">
+          <div class="mb-4">
+            <h2 class="text-2xl font-black text-primary">Visão Geral da Agência</h2>
+            <p class="text-gray-500 text-sm">Resumo operacional de concessões de limites e estatísticas.</p>
+          </div>
+
+          <!-- KPI Cards -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-secondary flex flex-col justify-between h-32">
+              <div>
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Total Pendente</span>
+                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-total-pendente">R$ 1.245.000,00</h3>
+              </div>
+              <div class="flex items-center text-red-600 font-bold text-xs gap-1">
+                <span class="material-symbols-outlined text-sm">trending_up</span> +12% este mês
+              </div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-primary flex flex-col justify-between h-32">
+              <div>
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Limite de Conta</span>
+                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-limite-conta">R$ 8.920.450,00</h3>
+              </div>
+              <div class="flex items-center text-primary font-bold text-xs gap-1">
+                <span class="material-symbols-outlined text-sm">check_circle</span> 92% Utilizado
+              </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-primary flex flex-col justify-between h-32">
+              <div>
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Limite de Cartão</span>
+                <h3 class="text-2xl font-black text-gray-900 mt-1">R$ 3.412.000,00</h3>
+              </div>
+              <div class="flex items-center text-secondary font-bold text-xs gap-1">
+                <span class="material-symbols-outlined text-sm">update</span> Revisão em 2 dias
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart Area -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div class="lg:col-span-8 bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col">
+              <div class="p-6 border-b border-outline-variant flex justify-between items-center bg-gray-50">
+                <h4 class="font-bold text-primary">Volume de Análises</h4>
+                <span class="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full font-bold">Mensal</span>
+              </div>
+              <div class="p-6 h-[300px] flex items-end justify-around gap-4 relative">
+                <div class="absolute inset-x-0 top-1/4 border-b border-gray-100"></div>
+                <div class="absolute inset-x-0 top-2/4 border-b border-gray-100"></div>
+                <div class="absolute inset-x-0 top-3/4 border-b border-gray-100"></div>
+                
+                <div class="w-full bg-primary/20 h-[40%] rounded-t-lg"></div>
+                <div class="w-full bg-primary/40 h-[65%] rounded-t-lg"></div>
+                <div class="w-full bg-primary/30 h-[45%] rounded-t-lg"></div>
+                <div class="w-full bg-primary/70 h-[85%] rounded-t-lg"></div>
+                <div class="w-full bg-secondary h-[70%] rounded-t-lg"></div>
+                <div class="w-full bg-primary h-[95%] rounded-t-lg"></div>
+              </div>
+            </div>
+
+            <div class="lg:col-span-4 bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col p-6 space-y-4">
+              <h4 class="font-bold text-primary border-b pb-2">Últimas Atualizações</h4>
+              <div class="space-y-4">
+                <div class="flex gap-3">
+                  <div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0">
+                    <span class="material-symbols-outlined text-sm">upload_file</span>
+                  </div>
+                  <div>
+                    <p class="text-xs font-bold text-gray-800">Planilha de Limites.xlsx</p>
+                    <p class="text-[10px] text-gray-500">Upload concluído por João Silva</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Protocol Table -->
+          <div class="bg-white rounded-lg border border-outline-variant shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-outline-variant bg-gray-50">
+              <h4 class="font-bold text-primary">Protocolos Recentes</h4>
+            </div>
+            <table class="w-full text-left">
+              <thead class="bg-primary text-white text-xs uppercase font-bold">
+                <tr>
+                  <th class="px-6 py-3">ID Protocolo</th>
+                  <th class="px-6 py-3">Associado</th>
+                  <th class="px-6 py-3">Tipo</th>
+                  <th class="px-6 py-3 text-right">Valor</th>
+                  <th class="px-6 py-3">Data</th>
+                  <th class="px-6 py-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody id="protocol-table-body" class="divide-y divide-gray-100 text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab: Upload de Listas -->
+        <div id="tab-upload-listas" class="space-y-8 hidden">
+          <div class="mb-4">
+            <h2 class="text-2xl font-black text-primary">Upload de Listas Central</h2>
+            <p class="text-gray-500 text-sm">Importe as listas de solicitação de crédito e implantação.</p>
+          </div>
+
+          <!-- Card Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div onclick="simulateUpload('Majoração Conta')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
+              <span class="font-bold text-primary text-sm mb-4">Majoração Conta</span>
+              <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
+                <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para simular upload</p>
+              </div>
+            </div>
+            <div onclick="simulateUpload('Majoração Cartão')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
+              <span class="font-bold text-primary text-sm mb-4">Majoração Cartão</span>
+              <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
+                <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para simular upload</p>
+              </div>
+            </div>
+            <div onclick="simulateUpload('Implantação Conta')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
+              <span class="font-bold text-primary text-sm mb-4">Implantação Conta</span>
+              <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
+                <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para simular upload</p>
+              </div>
+            </div>
+            <div onclick="simulateUpload('Implantação Cartão')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
+              <span class="font-bold text-primary text-sm mb-4">Implantação Cartão</span>
+              <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
+                <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para simular upload</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg border border-outline-variant shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-outline-variant bg-gray-50">
+              <h4 class="font-bold text-primary text-xs uppercase">Histórico de Arquivos</h4>
+            </div>
+            <table class="w-full text-left">
+              <thead class="bg-primary text-white text-xs font-bold">
+                <tr>
+                  <th class="px-6 py-3">Arquivo</th>
+                  <th class="px-6 py-3">Tipo de Lista</th>
+                  <th class="px-6 py-3">Data/Hora</th>
+                  <th class="px-6 py-3 text-center">Registros</th>
+                  <th class="px-6 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody id="uploads-table-body" class="divide-y divide-gray-100 text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab: Gestão de Limites -->
+        <div id="tab-gestao-limites" class="hidden">
+          <div class="flex border border-outline-variant rounded-lg bg-white overflow-hidden h-[500px]">
+            
+            <!-- Left Side: Associates List -->
+            <div class="w-[65%] flex flex-col border-r border-outline-variant h-full">
+              <div class="p-4 border-b border-outline-variant bg-gray-50 flex justify-between items-center">
+                <h3 class="font-bold text-primary text-sm">Associados para Análise</h3>
+                <span class="text-xs text-gray-500" id="associates-count">0</span>
+              </div>
+              <div class="flex-1 overflow-y-auto">
+                <table class="w-full text-left">
+                  <thead class="sticky top-0 bg-primary text-white text-xs uppercase font-bold z-10">
+                    <tr>
+                      <th class="p-3">Associado</th>
+                      <th class="p-3 text-right">Limite Atual</th>
+                      <th class="p-3 text-right">Sugestão</th>
+                      <th class="p-3 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="associates-table-body" class="divide-y divide-gray-100 text-sm"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right Side Details -->
+            <div class="w-[35%] bg-surface-container-low p-6 flex flex-col h-full overflow-y-auto space-y-6">
+              <div id="no-associate-selected" class="h-full flex flex-col items-center justify-center text-center p-6 text-gray-500">
+                <span class="material-symbols-outlined text-4xl mb-2">person_search</span>
+                <p class="font-bold text-sm">Selecione um associado da lista</p>
+              </div>
+
+              <div id="associate-details" class="hidden space-y-4">
+                <h3 class="text-lg font-bold text-primary" id="det-nome">Nome</h3>
+                <p class="text-xs text-gray-500" id="det-meta">CPF</p>
+
+                <div class="bg-white p-4 rounded border space-y-2">
+                  <p class="text-[10px] text-gray-500 uppercase font-bold">Renda Comprovada</p>
+                  <p class="text-lg font-black text-primary" id="det-renda">R$ 0,00</p>
+                  <div class="flex justify-between text-xs font-bold pt-2 border-t">
+                    <span class="text-gray-500">Comprometimento SCR</span>
+                    <span class="text-secondary" id="det-comprometimento">0%</span>
+                  </div>
+                </div>
+
+                <div class="bg-primary text-white p-4 rounded space-y-3">
+                  <p class="text-[10px] opacity-75 font-bold uppercase">Novo Limite Recomendado</p>
+                  <p class="text-2xl font-black" id="det-sugestao">R$ 0,00</p>
+                  <p class="text-xs opacity-75" id="det-atual">Limite Atual: R$ 0,00</p>
+                  
+                  <div class="space-y-2 pt-2">
+                    <input type="number" id="input-confirm-limit" class="w-full bg-white text-primary font-bold rounded p-2 text-sm border-none"/>
+                    <textarea id="input-confirm-justification" rows="2" class="w-full bg-white/15 text-white rounded p-2 text-xs border-none" placeholder="Justificativa..."></textarea>
+                    <button onclick="submitNewLimit()" class="w-full py-2 bg-secondary text-white font-bold text-xs rounded hover:brightness-105">
+                      Confirmar Novo Limite
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div id="new-protocol-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-lg max-w-md w-full p-6 space-y-4 shadow-2xl mx-4">
+      <h3 class="font-bold text-primary text-lg">Criar Novo Protocolo</h3>
+      <div class="space-y-3">
+        <input type="text" id="proto-name" class="w-full border-gray-300 rounded text-sm" placeholder="Nome do Associado"/>
+        <select id="proto-type" class="w-full border-gray-300 rounded text-sm">
+          <option>Limite de Conta</option>
+          <option>Limite de Cartão</option>
+        </select>
+        <input type="number" id="proto-value" class="w-full border-gray-300 rounded text-sm" placeholder="Valor"/>
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeNewProtocolModal()" class="px-4 py-2 border rounded text-xs text-gray-500">Cancelar</button>
+        <button onclick="submitNewProtocol()" class="px-4 py-2 bg-primary text-white rounded text-xs">Criar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let appData = { associados: [], uploads: [], protocolos: [], estatisticas: {} };
+    let selectedAssociateId = null;
+
+    window.onload = function() {
+      setTab('visao-geral');
+      loadAllData();
+    };
+
+    function setTab(tabId) {
+      document.getElementById('tab-visao-geral').classList.add('hidden');
+      document.getElementById('tab-upload-listas').classList.add('hidden');
+      document.getElementById('tab-gestao-limites').classList.add('hidden');
+      
+      document.getElementById('tab-' + tabId).classList.remove('hidden');
+      
+      const titles = {
+        'visao-geral': 'Visão Geral da Agência',
+        'upload-listas': 'Upload de Listas Central',
+        'gestao-limites': 'Gestão de Limites de Crédito'
+      };
+      document.getElementById('current-tab-title').innerText = titles[tabId];
+    }
+
+    function loadAllData() {
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('content').classList.add('hidden');
+      
+      const isGoogleAppsScript = typeof google !== 'undefined' && 
+                                 typeof google.script !== 'undefined' && 
+                                 typeof google.script.run !== 'undefined';
+                                 
+      if (isGoogleAppsScript) {
+        google.script.run
+          .withSuccessHandler(function(response) {
+            if (response && response.error) {
+              console.error("Erro no Apps Script:", response.error);
+              alert("Erro na planilha do Google Sheets: " + response.error + "\n\nUsando banco de dados simulado para demonstração.");
+              simulateLocalDatabase();
+            } else {
+              appData = response || appData;
+              renderAll();
+              document.getElementById('loading').classList.add('hidden');
+              document.getElementById('content').classList.remove('hidden');
+            }
+          })
+          .withFailureHandler(function(err) {
+            console.error("Falha na chamada do Apps Script:", err);
+            alert("Falha de conexão com o Google Sheets: " + err + "\n\nAtivando banco de dados simulado.");
+            simulateLocalDatabase();
+          })
+          .obterDadosCompletos();
+      } else {
+        console.log("Ambiente local/preview detectado. Ativando simulador local.");
+        simulateLocalDatabase();
+      }
+    }
+
+    function simulateLocalDatabase() {
+      appData = {
+        estatisticas: { totalPendente: 1245000, limiteContaTotal: 8920450, limiteCartaoTotal: 3412000 },
+        protocolos: [
+          { id: '#2024-001', associado: 'Carlos Eduardo Alcantara', tipo: 'Limite de Conta', valorSolicitado: 50000, data: '12/10/2024', status: 'Pendente' },
+          { id: '#2024-002', associado: 'Beatriz Ramos Silva', tipo: 'Limite de Cartão', valorSolicitado: 15000, data: '12/10/2024', status: 'Aprovado' }
+        ],
+        uploads: [
+          { id: 'UP-001', arquivo: 'majoracao_pf_0524.csv', tipoLista: 'Majoração Conta', dataHora: '24/05/2024 - 14:32', registros: 1240, status: 'Validado' }
+        ],
+        associados: [
+          { id: 'ASC-001', nome: 'RICARDO ALMEIDA SANTOS', cpfCnpj: '123.456.789-00', conta: '10293-4', limiteAtual: 18500, sugestaoMotor: 25000, status: 'AGUARDANDO', rendaComprovada: 15450, comprometimentoSCR: 35, score: 845, inadimplenciaDias: 0, tempoAssociadoAnos: 12 }
+        ]
+      };
+      renderAll();
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('content').classList.remove('hidden');
+    }
+
+    function renderAll() {
+      document.getElementById('kpi-total-pendente').innerText = formatCurrency(appData.estatisticas.totalPendente);
+      document.getElementById('kpi-limite-conta').innerText = formatCurrency(appData.estatisticas.limiteContaTotal);
+
+      const protoTbody = document.getElementById('protocol-table-body');
+      protoTbody.innerHTML = '';
+      appData.protocolos.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-gray-50 transition";
+        tr.innerHTML = 
+          "<td class='px-6 py-4 font-bold text-secondary'>" + p.id + "</td>" +
+          "<td class='px-6 py-4 font-medium text-gray-900'>" + p.associado + "</td>" +
+          "<td class='px-6 py-4 text-gray-600'>" + p.tipo + "</td>" +
+          "<td class='px-6 py-4 text-right font-semibold'>" + formatCurrency(p.valorSolicitado) + "</td>" +
+          "<td class='px-6 py-4 text-gray-500'>" + p.data + "</td>" +
+          "<td class='px-6 py-4 text-center'><span class='px-2.5 py-0.5 rounded-full text-xs font-bold'>" + p.status + "</span></td>";
+        protoTbody.appendChild(tr);
+      });
+
+      const uploadTbody = document.getElementById('uploads-table-body');
+      uploadTbody.innerHTML = '';
+      appData.uploads.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-gray-50 transition";
+        tr.innerHTML = 
+          "<td class='px-6 py-4 font-bold text-primary'>" + u.arquivo + "</td>" +
+          "<td class='px-6 py-4'>" + u.tipoLista + "</td>" +
+          "<td class='px-6 py-4 text-gray-500'>" + u.dataHora + "</td>" +
+          "<td class='px-6 py-4 text-center font-medium'>" + u.registros + "</td>" +
+          "<td class='px-6 py-4'><span class='px-2 py-0.5 rounded text-xs font-bold'>" + u.status + "</span></td>";
+        uploadTbody.appendChild(tr);
+      });
+
+      document.getElementById('associates-count').innerText = appData.associados.length;
+      const assocTbody = document.getElementById('associates-table-body');
+      assocTbody.innerHTML = '';
+      appData.associados.forEach(a => {
+        const tr = document.createElement('tr');
+        const isSelected = selectedAssociateId === a.id;
+        tr.className = "cursor-pointer transition " + (isSelected ? "bg-orange-50 font-bold border-l-4 border-secondary" : "hover:bg-gray-50");
+        tr.onclick = function() { selectAssociate(a.id); };
+        tr.innerHTML = 
+          "<td class='p-3'><div class='flex flex-col'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + "</span></div></td>" +
+          "<td class='p-3 text-right'>" + formatCurrency(a.limiteAtual) + "</td>" +
+          "<td class='p-3 text-right text-secondary'>" + formatCurrency(a.sugestaoMotor) + "</td>" +
+          "<td class='p-3 text-center'><span class='px-2 py-0.5 rounded text-[10px] font-bold'>" + a.status + "</span></td>";
+        assocTbody.appendChild(tr);
+      });
+
+      if (selectedAssociateId) {
+        selectAssociate(selectedAssociateId);
+      }
+    }
+
+    function selectAssociate(id) {
+      selectedAssociateId = id;
+      const assoc = appData.associados.find(a => a.id === id);
+      if (!assoc) return;
+
+      document.getElementById('no-associate-selected').classList.add('hidden');
+      document.getElementById('associate-details').classList.remove('hidden');
+
+      document.getElementById('det-nome').innerText = assoc.nome;
+      document.getElementById('det-meta').innerText = "CPF: " + assoc.cpfCnpj + " • Conta: " + assoc.conta;
+      document.getElementById('det-renda').innerText = formatCurrency(assoc.rendaComprovada);
+      document.getElementById('det-comprometimento').innerText = assoc.comprometimentoSCR + "%";
+      document.getElementById('det-sugestao').innerText = formatCurrency(assoc.sugestaoMotor);
+      document.getElementById('det-atual').innerText = "Limite Atual: " + formatCurrency(assoc.limiteAtual);
+
+      document.getElementById('input-confirm-limit').value = assoc.sugestaoMotor;
+      document.getElementById('input-confirm-justification').value = assoc.justificativa || "";
+    }
+
+    function simulateUpload(tipo) {
+      const fileName = tipo.toLowerCase().replace(/\s/g, '_') + '_lote.csv';
+      try {
+        google.script.run
+          .withSuccessHandler(function() {
+            alert("Upload registrado com sucesso!");
+            loadAllData();
+          })
+          .registrarUpload(fileName, tipo, 150, "Validado", "");
+      } catch (e) {
+        alert("Demo Local: Upload simulado!");
+      }
+    }
+
+    function submitNewLimit() {
+      if (!selectedAssociateId) return;
+      const val = parseFloat(document.getElementById('input-confirm-limit').value);
+      const justification = document.getElementById('input-confirm-justification').value;
+
+      try {
+        google.script.run
+          .withSuccessHandler(function() {
+            alert("Limite atualizado!");
+            loadAllData();
+          })
+          .confirmarNovoLimite(selectedAssociateId, val, justification);
+      } catch(e) {
+        alert("Demo Local: Limite atualizado!");
+      }
+    }
+
+    function openNewProtocolModal() { document.getElementById('new-protocol-modal').classList.remove('hidden'); }
+    function closeNewProtocolModal() { document.getElementById('new-protocol-modal').classList.add('hidden'); }
+
+    function submitNewProtocol() {
+      const name = document.getElementById('proto-name').value;
+      const type = document.getElementById('proto-type').value;
+      const value = parseFloat(document.getElementById('proto-value').value);
+
+      try {
+        google.script.run
+          .withSuccessHandler(function() {
+            closeNewProtocolModal();
+            loadAllData();
+          })
+          .registrarNovoProtocolo(name, type, value);
+      } catch(e) {
+        closeNewProtocolModal();
+        alert("Demo Local: Protocolo criado!");
+      }
+    }
+
+    function formatCurrency(value) {
+      return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+  </script>
+</body>
+</html>

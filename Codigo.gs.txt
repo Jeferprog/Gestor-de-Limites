@@ -1,0 +1,403 @@
+/**
+ * Cresol Gestão de Limites - Backend Google Apps Script (codigo.gs)
+ * Sistema para Gestão de Limites de Crédito e Upload de Listas.
+ * Base de dados armazenada em Planilha do Google Sheets.
+ * 
+ * Como utilizar:
+ * 1. Crie uma Planilha do Google Sheets (ou utilize uma existente).
+ * 2. Clique em Extensões > Apps Script.
+ * 3. Cole este código no arquivo "Código.gs".
+ * 4. Crie um novo arquivo HTML com o nome "Index.html" e cole o código HTML disponibilizado.
+ * 5. Clique em Implantar > Nova implantação > Tipo: Aplicativo da Web.
+ *    - Executar como: Você (sua conta)
+ *    - Quem tem acesso: Qualquer pessoa no seu domínio (ou Qualquer pessoa)
+ * 6. Copie a URL gerada e acesse o sistema corporativo.
+ */
+
+function doGet(e) {
+  return HtmlService.createHtmlOutputFromFile('Index')
+      .setTitle('Cresol - Gestão de Limites')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+// Inicializa a planilha com as abas e cabeçalhos necessários, caso não existam
+function inicializarPlanilha() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. Aba de Associados
+  var shAssociados = ss.getSheetByName("Associados");
+  if (!shAssociados) {
+    shAssociados = ss.insertSheet("Associados");
+    shAssociados.appendRow([
+      "ID", "Nome", "CPF/CNPJ", "Conta", "Limite Atual", "Sugestão Motor", 
+      "Status", "Renda Comprovada", "Comprometimento SCR", "Score", 
+      "Inadimplência Dias", "Tempo Associado (Anos)", "Justificativa", "Novo Limite Confirmado"
+    ]);
+    // Adicionar dados iniciais
+    shAssociados.appendRow(["ASC-001", "RICARDO ALMEIDA SANTOS", "123.456.789-00", "10293-4", 18500, 25000, "AGUARDANDO", 15450, 35, 845, 0, 12, "", ""]);
+    shAssociados.appendRow(["ASC-002", "CLAUDIA REGINA SILVA", "012.345.678-98", "12.456-7", 15000, 25000, "AGUARDANDO", 9800, 18, 780, 0, 4, "", ""]);
+    shAssociados.appendRow(["ASC-003", "AGROINDUSTRIA VERDE LTDA", "04.567.890/0001-44", "24.111-0", 450000, 600000, "CRÍTICO", 180000, 55, 910, 0, 8, "", ""]);
+    shAssociados.appendRow(["ASC-004", "COOPERATIVA AGROPECUÁRIA DO SUL", "10.987.654/0001-32", "31.222-1", 800000, 1200000, "ANÁLISE", 350000, 42, 950, 0, 15, "", ""]);
+    shAssociados.appendRow(["ASC-005", "MARCOS AURÉLIO SOUZA", "432.109.876-54", "19.823-2", 8000, 12000, "APROVADO", 6200, 22, 710, 0, 2, "Aprovado via sistema", 12000]);
+    
+    // Auto-ajusta largura das colunas
+    shAssociados.autoResizeColumns(1, 14);
+  }
+  
+  // 2. Aba de Uploads (Histórico de Arquivos)
+  var shUploads = ss.getSheetByName("Uploads");
+  if (!shUploads) {
+    shUploads = ss.insertSheet("Uploads");
+    shUploads.appendRow(["ID", "Arquivo", "Tipo de Lista", "Data/Hora", "Registros", "Status", "Detalhes Erro"]);
+    shUploads.appendRow(["UP-001", "majoracao_pf_0524.csv", "Majoração Conta", "24/05/2024 - 14:32", 1240, "Validado", ""]);
+    shUploads.appendRow(["UP-002", "implante_cartao_v2.xlsx", "Implantação Cartão", "24/05/2024 - 11:15", 85, "Erro no Layout", "Coluna 'Tipo de Conta' inválida ou ausente"]);
+    shUploads.appendRow(["UP-003", "cartao_credito_pisc.csv", "Majoração Cartão", "23/05/2024 - 17:50", 3500, "Processando", ""]);
+    shUploads.appendRow(["UP-004", "contas_novas_sede.csv", "Implantação Conta", "23/05/2024 - 09:10", 210, "Validado", ""]);
+    
+    shUploads.autoResizeColumns(1, 7);
+  }
+
+  // 3. Aba de Protocolos
+  var shProtocolos = ss.getSheetByName("Protocolos");
+  if (!shProtocolos) {
+    shProtocolos = ss.insertSheet("Protocolos");
+    shProtocolos.appendRow(["ID Protocolo", "Associado", "Tipo", "Valor Solicitado", "Data", "Status"]);
+    shProtocolos.appendRow(["#2024-001", "Carlos Eduardo Alcantara", "Limite de Conta", 50000, "12/10/2024", "Pendente"]);
+    shProtocolos.appendRow(["#2024-002", "Beatriz Ramos Silva", "Limite de Cartão", 15000, "12/10/2024", "Aprovado"]);
+    shProtocolos.appendRow(["#2024-003", "Indústria de Móveis Sul Ltda", "Custeio Agrícola", 450000, "11/10/2024", "Análise"]);
+    
+    shProtocolos.autoResizeColumns(1, 6);
+  }
+  
+  // Remove a aba padrão Sheet1 se houver mais abas criadas
+  var defaultSheet = ss.getSheetByName("Sheet1") || ss.getSheetByName("Página1");
+  if (defaultSheet && ss.getSheets().length > 1) {
+    ss.deleteSheet(defaultSheet);
+  }
+  
+  return "Planilha inicializada com sucesso!";
+}
+
+// Obtém todos os dados estruturados para o app de uma única vez
+function obterDadosCompletos() {
+  try {
+    inicializarPlanilha();
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    
+    // 1. Carrega Associados
+    var shAssociados = ss.getSheetByName("Associados");
+    var dadosAssociados = shAssociados.getDataRange().getValues();
+    var associados = [];
+    for (var i = 1; i < dadosAssociados.length; i++) {
+      var r = dadosAssociados[i];
+      associados.push({
+        id: r[0],
+        nome: r[1],
+        cpfCnpj: r[2],
+        conta: r[3],
+        limiteAtual: Number(r[4]) || 0,
+        sugestaoMotor: Number(r[5]) || 0,
+        status: r[6] || "AGUARDANDO",
+        rendaComprovada: Number(r[7]) || 0,
+        comprometimentoSCR: Number(r[8]) || 0,
+        score: Number(r[9]) || 0,
+        inadimplenciaDias: Number(r[10]) || 0,
+        tempoAssociadoAnos: Number(r[11]) || 0,
+        justificativa: r[12] || "",
+        novoLimiteConfirmado: r[13] ? Number(r[13]) : null
+      });
+    }
+
+    // 2. Carrega Uploads
+    var shUploads = ss.getSheetByName("Uploads");
+    var dadosUploads = shUploads.getDataRange().getValues();
+    var uploads = [];
+    for (var i = 1; i < dadosUploads.length; i++) {
+      var r = dadosUploads[i];
+      uploads.push({
+        id: r[0],
+        arquivo: r[1],
+        tipoLista: r[2],
+        dataHora: r[3],
+        registros: Number(r[4]) || 0,
+        status: r[5] || "Validado",
+        detalhesErro: r[6] || ""
+      });
+    }
+
+    // 3. Carrega Protocolos
+    var shProtocolos = ss.getSheetByName("Protocolos");
+    var dadosProtocolos = shProtocolos.getDataRange().getValues();
+    var protocolos = [];
+    for (var i = 1; i < dadosProtocolos.length; i++) {
+      var r = dadosProtocolos[i];
+      protocolos.push({
+        id: r[0],
+        associado: r[1],
+        tipo: r[2],
+        valorSolicitado: Number(r[3]) || 0,
+        data: r[4],
+        status: r[5] || "Pendente"
+      });
+    }
+
+    // Calcular estatísticas financeiras gerais para a agência
+    var totalPendente = 0;
+    protocolos.forEach(function(p) {
+      if (p.status === "Pendente") {
+        totalPendente += p.valorSolicitado;
+      }
+    });
+
+    var limiteContaTotal = 0;
+    associados.forEach(function(a) {
+      limiteContaTotal += a.limiteAtual;
+    });
+
+    return {
+      associados: associados,
+      uploads: uploads.reverse(), // Ordena mais novos primeiro
+      protocolos: protocolos,
+      estatisticas: {
+        totalPendente: totalPendente || 1245000,
+        limiteContaTotal: limiteContaTotal || 8920450,
+        limiteCartaoTotal: 3412000,
+        limiteContaUtilizadoPercent: 92,
+        revisaoDiasRestantes: 2
+      }
+    };
+  } catch (err) {
+    return { error: err.toString() };
+  }
+}
+
+// Atualiza o limite de crédito do associado e muda seu status
+function confirmarNovoLimite(id, novoLimite, justificativa) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Associados");
+    var data = sheet.getDataRange().getValues();
+    
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][0] === id) {
+        var linha = i + 1;
+        sheet.getRange(linha, 7).setValue("APROVADO"); // Status
+        sheet.getRange(linha, 13).setValue(justificativa); // Justificativa
+        sheet.getRange(linha, 14).setValue(novoLimite); // Novo Limite Confirmado
+        
+        // Adiciona um protocolo de aprovação registrado
+        var shProtocolos = ss.getSheetByName("Protocolos");
+        var novoId = "#2024-" + String(shProtocolos.getLastRow()).padStart(3, '0');
+        shProtocolos.appendRow([novoId, data[i][1], "Limite de Conta", novoLimite, obterDataAtualFormatada(), "Aprovado"]);
+        
+        return { success: true };
+      }
+    }
+    return { success: false, error: "Associado não encontrado" };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// Cria um Novo Protocolo
+function registrarNovoProtocolo(associado, tipo, valorSolicitado) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Protocolos");
+    var novoId = "#2024-" + String(sheet.getLastRow()).padStart(3, '0');
+    var dataStr = obterDataAtualFormatada();
+    sheet.appendRow([novoId, associado, tipo, valorSolicitado, dataStr, "Pendente"]);
+    return { success: true, protocolo: { id: novoId, associado: associado, tipo: tipo, valorSolicitado: valorSolicitado, data: dataStr, status: "Pendente" } };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// Registra um novo upload no histórico
+function registrarUpload(arquivo, tipoLista, registros, status, detalhesErro) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Uploads");
+    var novoId = "UP-" + String(sheet.getLastRow()).padStart(3, '0');
+    var dataHoraStr = obterDataAtualFormatada() + " - " + obterHoraAtualFormatada();
+    sheet.appendRow([novoId, arquivo, tipoLista, dataHoraStr, registros, status, detalhesErro || ""]);
+    return { success: true, upload: { id: novoId, arquivo: arquivo, tipoLista: tipoLista, dataHora: dataHoraStr, registros: registros, status: status, detalhesErro: detalhesErro } };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// Valida e processa um arquivo real de texto (CSV/TSV) contendo as bases de majoração
+function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    inicializarPlanilha();
+    
+    var linhas = conteudoTexto.split(/\r?\n/);
+    if (linhas.length === 0 || linhas[0].trim() === "") {
+      return { success: false, error: "Arquivo vazio ou inválido." };
+    }
+    
+    var primeiraLinha = linhas[0];
+    var delimitador = ";";
+    if (primeiraLinha.indexOf("\t") !== -1) {
+      delimitador = "\t";
+    } else if (primeiraLinha.indexOf(",") !== -1 && primeiraLinha.indexOf(";") === -1) {
+      delimitador = ",";
+    }
+    
+    var cabecalho = primeiraLinha.split(delimitador).map(function(c) {
+      return c.replace(/^["']|["']$/g, '').trim();
+    });
+    
+    // Cabeçalhos Oficiais fornecidos pela Cresol
+    var colunasEsperadas = [];
+    if (tipoLista.indexOf("Cartão") !== -1) {
+      colunasEsperadas = [
+        "Agência", "Gerente", "Micro Segmento", "Documento", "Cooperado", "Conta Corrente", "Score", 
+        "Ativo Comercial", "IRC", "Capital Social", "Saldo Devedor", "Aplicações", "DT Base SCR", 
+        "Emprest. e Financ. SCR", "Emprest. e Financ. 360 SCR", "Emprest. e Financ. Mensal SCR", 
+        "Renda Mensal", "Última Atualização Renda", "Compromet. Renda", "Renda Disponível", 
+        "Cartão de Crédito - Limite SCR", "Cartão de Crédito - Limite Cresol", "Cartão de Crédito - Saldo Devedor", 
+        "Cartão de Crédito - Sugestão Limite"
+      ];
+    } else {
+      // Cheque Especial / Limite de Cheque
+      colunasEsperadas = [
+        "Agência", "Gerente", "Micro Segmento", "Documento", "Cooperado", "Conta Corrente", "Score", 
+        "Ativo Comercial", "IRC", "Capital Social", "Saldo Devedor", "Aplicações", "DT Base SCR", 
+        "Emprest. e Financ. SCR", "Emprest. e Financ. 360 SCR", "Emprest. e Financ. Mensal SCR", 
+        "Renda Mensal", "Última Atualização Renda", "Compromet. Renda", "Renda Disponível", 
+        "Cheque Especial - Limite SCR", "Cheque Especial - Limite Cresol", "Cheque Especial - Saldo Devedor", 
+        "Cheque Especial - Sugestão Limite"
+      ];
+    }
+    
+    // Validar se colunas cruciais estão presentes
+    var colunasFaltantes = [];
+    colunasEsperadas.forEach(function(col) {
+      var colLimpa = col.replace(/\r?\n|\r/g, " ").trim().toLowerCase();
+      var achou = cabecalho.some(function(c) {
+        var cLimpo = c.replace(/\r?\n|\r/g, " ").trim().toLowerCase();
+        return cLimpo === colLimpa;
+      });
+      if (!achou) {
+        colunasFaltantes.push(col.replace(/\r?\n|\r/g, " "));
+      }
+    });
+    
+    if (colunasFaltantes.length > 0) {
+      var erroMsg = "Layout incompatível. Faltando: " + colunasFaltantes.join(", ");
+      registrarUpload(nomeArquivo, tipoLista, 0, "Erro no Layout", erroMsg);
+      return { success: false, error: erroMsg, colunasFaltantes: colunasFaltantes };
+    }
+    
+    // Mapear índices das colunas para gravação
+    var idxDoc = -1;
+    var idxNome = -1;
+    var idxConta = -1;
+    var idxScore = -1;
+    var idxRenda = -1;
+    var idxComprometimento = -1;
+    var idxLimiteCresol = -1;
+    var idxSugestao = -1;
+    
+    cabecalho.forEach(function(c, idx) {
+      var cLimpo = c.replace(/\r?\n|\r/g, " ").trim().toLowerCase();
+      if (cLimpo === "documento") idxDoc = idx;
+      else if (cLimpo === "cooperado") idxNome = idx;
+      else if (cLimpo === "conta corrente") idxConta = idx;
+      else if (cLimpo === "score") idxScore = idx;
+      else if (cLimpo === "renda mensal") idxRenda = idx;
+      else if (cLimpo === "compromet. renda") idxComprometimento = idx;
+      else if (cLimpo.indexOf("limite cresol") !== -1) idxLimiteCresol = idx;
+      else if (cLimpo.indexOf("sugestão limite") !== -1 || cLimpo.indexOf("sugestao limite") !== -1) idxSugestao = idx;
+    });
+    
+    var shAssociados = ss.getSheetByName("Associados");
+    var dadosExistem = shAssociados.getDataRange().getValues();
+    var cpfsExistentes = {};
+    for (var i = 1; i < dadosExistem.length; i++) {
+      var cpf = String(dadosExistem[i][2]).trim();
+      cpfsExistentes[cpf] = i + 1;
+    }
+    
+    var registrosProcessados = 0;
+    
+    for (var i = 1; i < linhas.length; i++) {
+      var linhaTexto = linhas[i].trim();
+      if (linhaTexto === "") continue;
+      
+      var colunas = linhaTexto.split(delimitador).map(function(c) {
+        return c.replace(/^["']|["']$/g, '').trim();
+      });
+      
+      if (colunas.length < cabecalho.length) continue;
+      
+      var doc = colunas[idxDoc];
+      var nome = colunas[idxNome];
+      var conta = colunas[idxConta];
+      var score = Number(colunas[idxScore]) || 650;
+      var renda = parseDinheiro(colunas[idxRenda]);
+      var comprometimento = parseFloat(colunas[idxComprometimento]) || 25;
+      var limiteAtual = parseDinheiro(colunas[idxLimiteCresol]);
+      var sugestao = parseDinheiro(colunas[idxSugestao]);
+      
+      if (!doc || !nome) continue;
+      
+      registrosProcessados++;
+      var docFormatado = String(doc).trim();
+      
+      if (cpfsExistentes[docFormatado]) {
+        var l = cpfsExistentes[docFormatado];
+        shAssociados.getRange(l, 2).setValue(nome);
+        shAssociados.getRange(l, 4).setValue(conta);
+        shAssociados.getRange(l, 5).setValue(limiteAtual);
+        shAssociados.getRange(l, 6).setValue(sugestao);
+        shAssociados.getRange(l, 7).setValue("AGUARDANDO");
+        shAssociados.getRange(l, 8).setValue(renda);
+        shAssociados.getRange(l, 9).setValue(comprometimento);
+        shAssociados.getRange(l, 10).setValue(score);
+      } else {
+        var novoId = "ASC-" + String(shAssociados.getLastRow() + 1).padStart(3, '0');
+        shAssociados.appendRow([
+          novoId, nome, docFormatado, conta, limiteAtual, sugestao, 
+          "AGUARDANDO", renda, comprometimento, score, 0, 3, "", ""
+        ]);
+      }
+    }
+    
+    registrarUpload(nomeArquivo, tipoLista, registrosProcessados, "Validado", "");
+    return { success: true, registros: registrosProcessados };
+  } catch (err) {
+    registrarUpload(nomeArquivo, tipoLista, 0, "Erro no Layout", err.toString());
+    return { success: false, error: err.toString() };
+  }
+}
+
+function parseDinheiro(valorTexto) {
+  if (!valorTexto) return 0;
+  var limpo = String(valorTexto)
+    .replace("R$", "")
+    .replace(/\s/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
+  return Number(limpo) || 0;
+}
+
+// Helpers para Formatação de Data/Hora brasileira
+function obterDataAtualFormatada() {
+  var hoje = new Date();
+  var dd = String(hoje.getDate()).padStart(2, '0');
+  var mm = String(hoje.getMonth() + 1).padStart(2, '0');
+  var yyyy = hoje.getFullYear();
+  return dd + '/' + mm + '/' + yyyy;
+}
+
+function obterHoraAtualFormatada() {
+  var hoje = new Date();
+  var hh = String(hoje.getHours()).padStart(2, '0');
+  var min = String(hoje.getMinutes()).padStart(2, '0');
+  return hh + ':' + min;
+}
