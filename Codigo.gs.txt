@@ -157,9 +157,9 @@ function obterDadosCompletos() {
     // - não cadastrado: não vê nenhum associado
     if (!usuario.isSede) {
       if (usuario.cadastrado) {
-        var agUsuario = normalizarCol(usuario.agencia);
+        var codUsuario = codigoAgencia(usuario.agencia);
         associados = associados.filter(function(a) {
-          return normalizarCol(a.agencia) === agUsuario;
+          return codigoAgencia(a.agencia) === codUsuario;
         });
       } else {
         associados = [];
@@ -433,7 +433,7 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
         "sugestao motor": parseDinheiro(pega(idx.sugestao)),
         "status": "AGUARDANDO",
         "renda comprovada": parseDinheiro(pega(idx.renda)),
-        "comprometimento scr": parseFloat(pega(idx.comprometimento)) || 0,
+        "comprometimento scr": parseDinheiro(pega(idx.comprometimento)),
         "score": Number(pega(idx.score)) || 0,
         "micro segmento": String(pega(idx.microSeg)).trim(),
         "ativo comercial": String(pega(idx.ativoComercial)).trim(),
@@ -507,7 +507,8 @@ function obterUsuarioAtual() {
     if (e && e === emailNorm) {
       resultado.agencia = String(dados[i][2] || "").trim();
       resultado.cadastrado = true;
-      resultado.isSede = normalizarCol(resultado.agencia).indexOf("sede") !== -1;
+      // SEDE é comparação EXATA (nomes de agência podem conter a palavra "Sede")
+      resultado.isSede = normalizarCol(resultado.agencia) === "sede";
       break;
     }
   }
@@ -569,14 +570,43 @@ function normalizarCol(texto) {
     .toLowerCase();
 }
 
+// Converte texto monetário/numérico para número, tolerando formato brasileiro
+// ("1.234,56") e americano ("1,234.56"), com ou sem "R$", "%" e espaços.
+// Regra: o separador mais à direita é o decimal.
+// Extrai o código da agência (parte antes de " - ") normalizado, para comparação.
+// Ex.: "20321 - Pac Sede Nova" -> "20321"; "0632" -> "0632"; "SEDE" -> "sede"
+function codigoAgencia(valor) {
+  var s = String(valor || "").trim();
+  var pos = s.indexOf(" - ");
+  if (pos !== -1) s = s.substring(0, pos);
+  return normalizarCol(s);
+}
+
 function parseDinheiro(valorTexto) {
-  if (!valorTexto) return 0;
-  var limpo = String(valorTexto)
-    .replace("R$", "")
-    .replace(/\s/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
-  return Number(limpo) || 0;
+  if (valorTexto === null || valorTexto === undefined) return 0;
+  var s = String(valorTexto).replace(/[^0-9.,\-]/g, ""); // remove R$, %, espaços, etc.
+  if (s === "" || s === "-" || s === "." || s === ",") return 0;
+
+  var temVirgula = s.indexOf(",") !== -1;
+  var temPonto = s.indexOf(".") !== -1;
+
+  if (temVirgula && temPonto) {
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
+      s = s.replace(/\./g, "").replace(/,/g, "."); // BR: 1.234,56
+    } else {
+      s = s.replace(/,/g, "");                     // US: 1,234.56
+    }
+  } else if (temVirgula) {
+    // só vírgula: várias => milhares; uma => decimal
+    if (s.indexOf(",") !== s.lastIndexOf(",")) s = s.replace(/,/g, "");
+    else s = s.replace(",", ".");
+  } else if (temPonto) {
+    // só ponto: vários => milhares (BR); um único => decimal (US/Excel)
+    if (s.indexOf(".") !== s.lastIndexOf(".")) s = s.replace(/\./g, "");
+  }
+
+  var n = Number(s);
+  return isNaN(n) ? 0 : n;
 }
 
 // Helpers para Formatação de Data/Hora brasileira
