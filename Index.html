@@ -5,6 +5,8 @@
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
   <title>Cresol Gestão de Limites</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <!-- SheetJS: leitura de arquivos Excel (.xls/.xlsx) no navegador -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
   
@@ -215,7 +217,7 @@
           </div>
 
           <!-- Input de arquivo oculto e reutilizado por todos os cards -->
-          <input type="file" id="file-input" accept=".csv,.txt,.tsv" class="hidden" onchange="handleFileSelected(event)"/>
+          <input type="file" id="file-input" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" class="hidden" onchange="handleFileSelected(event)"/>
 
           <!-- Card Grid -->
           <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -223,28 +225,28 @@
               <span class="font-bold text-primary text-sm mb-4">Majoração Conta</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar (.xls, .xlsx ou .csv)</p>
               </div>
             </div>
             <div onclick="triggerUpload('Majoração Cartão')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
               <span class="font-bold text-primary text-sm mb-4">Majoração Cartão</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar (.xls, .xlsx ou .csv)</p>
               </div>
             </div>
             <div onclick="triggerUpload('Implantação Conta')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
               <span class="font-bold text-primary text-sm mb-4">Implantação Conta</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar (.xls, .xlsx ou .csv)</p>
               </div>
             </div>
             <div onclick="triggerUpload('Implantação Cartão')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
               <span class="font-bold text-primary text-sm mb-4">Implantação Cartão</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar (.xls, .xlsx ou .csv)</p>
               </div>
             </div>
           </div>
@@ -528,7 +530,10 @@
 
       showUploadStatus('Lendo "' + file.name + '"...');
 
-      readFileSmart(file)
+      const ehExcel = /\.(xlsx|xls|xlsm)$/i.test(file.name);
+      const leitura = ehExcel ? lerExcelComoCsv(file) : readFileSmart(file);
+
+      leitura
         .then(function(conteudo) {
           enviarArquivoParaProcessamento(file.name, conteudo, uploadTipoAtual);
         })
@@ -536,6 +541,30 @@
           hideUploadStatus();
           alert("Não foi possível ler o arquivo: " + err);
         });
+    }
+
+    // Converte um arquivo Excel (.xls/.xlsx) para CSV (delimitado por ;) no navegador
+    function lerExcelComoCsv(file) {
+      return new Promise(function(resolve, reject) {
+        if (typeof XLSX === 'undefined') {
+          reject("Biblioteca de leitura de Excel não carregou. Verifique sua conexão e recarregue a página.");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onerror = function() { reject(reader.error); };
+        reader.onload = function() {
+          try {
+            const workbook = XLSX.read(new Uint8Array(reader.result), { type: 'array' });
+            const primeiraAba = workbook.Sheets[workbook.SheetNames[0]];
+            // rawNumbers:false usa o texto formatado das células (preserva R$ e separadores pt-BR)
+            const csv = XLSX.utils.sheet_to_csv(primeiraAba, { FS: ';', rawNumbers: false });
+            resolve(csv);
+          } catch (e) {
+            reject(e);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      });
     }
 
     // Lê o arquivo como texto detectando UTF-8 x ISO-8859-1 (comum em exportações bancárias)
