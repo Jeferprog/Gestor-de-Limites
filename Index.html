@@ -127,71 +127,64 @@
           </div>
 
           <!-- KPI Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-secondary flex flex-col justify-between h-32">
               <div>
                 <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Total Pendente</span>
-                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-total-pendente">R$ 1.245.000,00</h3>
+                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-total-pendente">R$ 0,00</h3>
               </div>
-              <div class="flex items-center text-red-600 font-bold text-xs gap-1">
-                <span class="material-symbols-outlined text-sm">trending_up</span> +12% este mês
-              </div>
-            </div>
-            
-            <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-primary flex flex-col justify-between h-32">
-              <div>
-                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Limite de Conta</span>
-                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-limite-conta">R$ 8.920.450,00</h3>
-              </div>
-              <div class="flex items-center text-primary font-bold text-xs gap-1">
-                <span class="material-symbols-outlined text-sm">check_circle</span> 92% Utilizado
+              <div class="flex items-center text-gray-500 font-bold text-xs gap-1">
+                <span class="material-symbols-outlined text-sm">hourglass_empty</span> <span id="kpi-pendentes-count">0</span> protocolos pendentes
               </div>
             </div>
 
             <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-primary flex flex-col justify-between h-32">
               <div>
-                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Limite de Cartão</span>
-                <h3 class="text-2xl font-black text-gray-900 mt-1">R$ 3.412.000,00</h3>
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Limite de Conta (Atual)</span>
+                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-limite-conta">R$ 0,00</h3>
+              </div>
+              <div class="flex items-center text-primary font-bold text-xs gap-1">
+                <span class="material-symbols-outlined text-sm">groups</span> <span id="kpi-associados-count">0</span> associados
+              </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-green-600 flex flex-col justify-between h-32">
+              <div>
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Novos Limites Confirmados</span>
+                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-novo-limite">R$ 0,00</h3>
+              </div>
+              <div class="flex items-center text-green-700 font-bold text-xs gap-1">
+                <span class="material-symbols-outlined text-sm">task_alt</span> <span id="kpi-aprovados-count">0</span> aprovados
+              </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-secondary flex flex-col justify-between h-32">
+              <div>
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Aguardando Análise</span>
+                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-aguardando-count">0</h3>
               </div>
               <div class="flex items-center text-secondary font-bold text-xs gap-1">
-                <span class="material-symbols-outlined text-sm">update</span> Revisão em 2 dias
+                <span class="material-symbols-outlined text-sm">pending_actions</span> associados na fila
               </div>
             </div>
           </div>
 
-          <!-- Chart Area -->
+          <!-- Distribuição por status + Últimos uploads -->
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div class="lg:col-span-8 bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col">
               <div class="p-6 border-b border-outline-variant flex justify-between items-center bg-gray-50">
-                <h4 class="font-bold text-primary">Volume de Análises</h4>
-                <span class="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full font-bold">Mensal</span>
+                <h4 class="font-bold text-primary">Distribuição por Status</h4>
+                <span class="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full font-bold">Associados</span>
               </div>
-              <div class="p-6 h-[300px] flex items-end justify-around gap-4 relative">
-                <div class="absolute inset-x-0 top-1/4 border-b border-gray-100"></div>
-                <div class="absolute inset-x-0 top-2/4 border-b border-gray-100"></div>
-                <div class="absolute inset-x-0 top-3/4 border-b border-gray-100"></div>
-                
-                <div class="w-full bg-primary/20 h-[40%] rounded-t-lg"></div>
-                <div class="w-full bg-primary/40 h-[65%] rounded-t-lg"></div>
-                <div class="w-full bg-primary/30 h-[45%] rounded-t-lg"></div>
-                <div class="w-full bg-primary/70 h-[85%] rounded-t-lg"></div>
-                <div class="w-full bg-secondary h-[70%] rounded-t-lg"></div>
-                <div class="w-full bg-primary h-[95%] rounded-t-lg"></div>
+              <div class="p-6 space-y-3" id="status-distribution">
+                <p class="text-sm text-gray-400 text-center py-8">Sem dados. Importe uma lista para começar.</p>
               </div>
             </div>
 
             <div class="lg:col-span-4 bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col p-6 space-y-4">
-              <h4 class="font-bold text-primary border-b pb-2">Últimas Atualizações</h4>
-              <div class="space-y-4">
-                <div class="flex gap-3">
-                  <div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0">
-                    <span class="material-symbols-outlined text-sm">upload_file</span>
-                  </div>
-                  <div>
-                    <p class="text-xs font-bold text-gray-800">Planilha de Limites.xlsx</p>
-                    <p class="text-[10px] text-gray-500">Upload concluído por João Silva</p>
-                  </div>
-                </div>
+              <h4 class="font-bold text-primary border-b pb-2">Últimas Importações</h4>
+              <div class="space-y-4" id="updates-list">
+                <p class="text-xs text-gray-400">Nenhuma importação registrada.</p>
               </div>
             </div>
           </div>
@@ -467,19 +460,13 @@
     }
 
     function simulateLocalDatabase() {
+      // Ambiente de preview (fora do Google Sheets): base vazia, sem dados fictícios.
       appData = {
-        estatisticas: { totalPendente: 1245000, limiteContaTotal: 8920450, limiteCartaoTotal: 3412000 },
-        protocolos: [
-          { id: '#2024-001', associado: 'Carlos Eduardo Alcantara', tipo: 'Limite de Conta', valorSolicitado: 50000, data: '12/10/2024', status: 'Pendente' },
-          { id: '#2024-002', associado: 'Beatriz Ramos Silva', tipo: 'Limite de Cartão', valorSolicitado: 15000, data: '12/10/2024', status: 'Aprovado' }
-        ],
-        uploads: [
-          { id: 'UP-001', arquivo: 'majoracao_pf_0524.csv', tipoLista: 'Majoração Conta', dataHora: '24/05/2024 - 14:32', registros: 1240, status: 'Validado' }
-        ],
-        associados: [
-          { id: 'ASC-001', nome: 'RICARDO ALMEIDA SANTOS', cpfCnpj: '123.456.789-00', conta: '10293-4', limiteAtual: 18500, sugestaoMotor: 25000, status: 'AGUARDANDO', rendaComprovada: 15450, comprometimentoSCR: 35, score: 845, inadimplenciaDias: 0, tempoAssociadoAnos: 12, microSegmento: 'PF Varejo', ativoComercial: 'Sim', irc: '0,85', capitalSocial: 1200, dtBaseScr: '05/2024', emprestScr: 5000, emprest360: 4200, emprestMensal: 900, limiteScr: 20000, saldoDevedor: 3500 },
-          { id: 'ASC-002', nome: 'CLAUDIA REGINA SILVA', cpfCnpj: '012.345.678-98', conta: '12.456-7', limiteAtual: 15000, sugestaoMotor: 25000, status: 'AGUARDANDO', rendaComprovada: 9800, comprometimentoSCR: 18, score: 780, inadimplenciaDias: 0, tempoAssociadoAnos: 4, microSegmento: 'PF Alta Renda', ativoComercial: 'Sim', irc: '0,72', capitalSocial: 800, dtBaseScr: '05/2024', emprestScr: 3000, emprest360: 2500, emprestMensal: 400, limiteScr: 18000, saldoDevedor: 1200 }
-        ]
+        usuario: { email: '', agencia: '', isSede: true, cadastrado: true },
+        estatisticas: { totalPendente: 0, limiteContaTotal: 0, totalNovoLimite: 0, totalAssociados: 0 },
+        protocolos: [],
+        uploads: [],
+        associados: []
       };
       renderAll();
       document.getElementById('loading').classList.add('hidden');
@@ -526,9 +513,7 @@
 
     function renderAll() {
       renderUsuario();
-
-      document.getElementById('kpi-total-pendente').innerText = formatCurrency(appData.estatisticas.totalPendente);
-      document.getElementById('kpi-limite-conta').innerText = formatCurrency(appData.estatisticas.limiteContaTotal);
+      renderKpisEResumo();
 
       const protoTbody = document.getElementById('protocol-table-body');
       protoTbody.innerHTML = '';
@@ -570,14 +555,30 @@
       lista.forEach(a => {
         const tr = document.createElement('tr');
         const isSelected = selectedAssociateId === a.id;
-        tr.className = "cursor-pointer transition " + (isSelected ? "bg-orange-50 font-bold border-l-4 border-secondary" : "hover:bg-gray-50");
+        tr.className = "cursor-pointer transition " + (isSelected ? "bg-orange-50 border-l-4 border-secondary" : "hover:bg-gray-50");
         tr.onclick = function() { selectAssociate(a.id); };
         const carteira = a.microSegmento ? "<span class='text-[10px] text-secondary'>" + a.microSegmento + "</span>" : "";
+        const aprovado = a.novoLimiteConfirmado !== null && a.novoLimiteConfirmado !== undefined && a.novoLimiteConfirmado !== '';
+
+        // Coluna Sugestão: valor confirmado (verde) ou sugestão + botão de confirmar
+        let sugestaoCell;
+        if (aprovado) {
+          sugestaoCell = "<span class='font-bold text-green-700' title='Novo limite confirmado'>" + formatCurrency(a.novoLimiteConfirmado) + "</span>";
+        } else {
+          sugestaoCell =
+            "<div class='flex items-center justify-end gap-1.5'>" +
+              "<span class='text-secondary'>" + formatCurrency(a.sugestaoMotor) + "</span>" +
+              "<button onclick=\"event.stopPropagation(); confirmarSugestaoLista('" + a.id + "')\" title='Confirmar limite sugerido' " +
+                "class='w-6 h-6 flex items-center justify-center rounded bg-green-600 text-white hover:brightness-110'>" +
+                "<span class='material-symbols-outlined text-sm'>check</span></button>" +
+            "</div>";
+        }
+
         tr.innerHTML =
           "<td class='p-3'><div class='flex flex-col'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + "</span>" + carteira + "</div></td>" +
           "<td class='p-3 text-right'>" + formatCurrency(a.limiteAtual) + "</td>" +
-          "<td class='p-3 text-right text-secondary'>" + formatCurrency(a.sugestaoMotor) + "</td>" +
-          "<td class='p-3 text-center'><span class='px-2 py-0.5 rounded text-[10px] font-bold'>" + a.status + "</span></td>";
+          "<td class='p-3 text-right'>" + sugestaoCell + "</td>" +
+          "<td class='p-3 text-center'>" + statusBadge(a.status) + "</td>";
         assocTbody.appendChild(tr);
       });
 
@@ -646,10 +647,102 @@
       document.getElementById('det-saldo').innerText = formatCurrency(assoc.saldoDevedor || 0);
 
       // Ação
+      const jaConfirmado = assoc.novoLimiteConfirmado !== null && assoc.novoLimiteConfirmado !== undefined && assoc.novoLimiteConfirmado !== '';
       document.getElementById('det-sugestao').innerText = formatCurrency(assoc.sugestaoMotor);
       document.getElementById('det-atual').innerText = "Limite Atual: " + formatCurrency(assoc.limiteAtual);
-      document.getElementById('input-confirm-limit').value = assoc.sugestaoMotor;
+      document.getElementById('input-confirm-limit').value = jaConfirmado ? assoc.novoLimiteConfirmado : assoc.sugestaoMotor;
       document.getElementById('input-confirm-justification').value = assoc.justificativa || "";
+    }
+
+    // Badge de status com cores por situação
+    function statusBadge(status) {
+      const s = String(status || '').toUpperCase();
+      let cls = 'bg-gray-100 text-gray-600';
+      if (s === 'APROVADO') cls = 'bg-green-100 text-green-700';
+      else if (s === 'AGUARDANDO') cls = 'bg-amber-100 text-amber-700';
+      else if (s === 'CRÍTICO' || s === 'CRITICO') cls = 'bg-red-100 text-red-700';
+      else if (s === 'ANÁLISE' || s === 'ANALISE') cls = 'bg-blue-100 text-blue-700';
+      return "<span class='px-2 py-0.5 rounded text-[10px] font-bold " + cls + "'>" + (status || '—') + "</span>";
+    }
+
+    // KPIs e resumo (distribuição por status + últimas importações)
+    function renderKpisEResumo() {
+      const est = appData.estatisticas || {};
+      const assoc = appData.associados || [];
+
+      document.getElementById('kpi-total-pendente').innerText = formatCurrency(est.totalPendente || 0);
+      document.getElementById('kpi-limite-conta').innerText = formatCurrency(est.limiteContaTotal || 0);
+      document.getElementById('kpi-novo-limite').innerText = formatCurrency(est.totalNovoLimite || 0);
+
+      const pendentes = (appData.protocolos || []).filter(p => p.status === 'Pendente').length;
+      const aprovados = assoc.filter(a => String(a.status).toUpperCase() === 'APROVADO').length;
+      const aguardando = assoc.filter(a => String(a.status).toUpperCase() === 'AGUARDANDO').length;
+
+      document.getElementById('kpi-pendentes-count').innerText = pendentes;
+      document.getElementById('kpi-associados-count').innerText = assoc.length;
+      document.getElementById('kpi-aprovados-count').innerText = aprovados;
+      document.getElementById('kpi-aguardando-count').innerText = aguardando;
+
+      // Distribuição por status
+      const cont = {};
+      assoc.forEach(a => { const s = String(a.status || 'AGUARDANDO').toUpperCase(); cont[s] = (cont[s] || 0) + 1; });
+      const dist = document.getElementById('status-distribution');
+      const chaves = Object.keys(cont);
+      if (chaves.length === 0) {
+        dist.innerHTML = "<p class='text-sm text-gray-400 text-center py-8'>Sem dados. Importe uma lista para começar.</p>";
+      } else {
+        const total = assoc.length;
+        dist.innerHTML = chaves.sort((a, b) => cont[b] - cont[a]).map(s => {
+          const pct = total ? Math.round(cont[s] / total * 100) : 0;
+          return "<div>" +
+            "<div class='flex justify-between text-xs mb-1'><span class='font-bold text-gray-700'>" + s + "</span><span class='text-gray-500'>" + cont[s] + " (" + pct + "%)</span></div>" +
+            "<div class='w-full bg-gray-100 rounded-full h-2.5'><div class='bg-primary h-2.5 rounded-full' style='width:" + pct + "%'></div></div>" +
+          "</div>";
+        }).join('');
+      }
+
+      // Últimas importações (do histórico de uploads)
+      const ul = document.getElementById('updates-list');
+      const ups = (appData.uploads || []).slice(0, 5);
+      if (ups.length === 0) {
+        ul.innerHTML = "<p class='text-xs text-gray-400'>Nenhuma importação registrada.</p>";
+      } else {
+        ul.innerHTML = ups.map(u =>
+          "<div class='flex gap-3'>" +
+            "<div class='w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0'>" +
+              "<span class='material-symbols-outlined text-sm'>upload_file</span></div>" +
+            "<div class='min-w-0'>" +
+              "<p class='text-xs font-bold text-gray-800 truncate'>" + u.arquivo + "</p>" +
+              "<p class='text-[10px] text-gray-500'>" + u.dataHora + " • " + u.registros + " registros</p>" +
+            "</div></div>"
+        ).join('');
+      }
+    }
+
+    // Confirma o limite SUGERIDO direto pela lista (botão de check)
+    function confirmarSugestaoLista(id) {
+      const a = (appData.associados || []).find(x => x.id === id);
+      if (!a) return;
+      if (!confirm('Confirmar o limite sugerido de ' + formatCurrency(a.sugestaoMotor) + ' para ' + a.nome + '?')) return;
+      enviarConfirmacao(id, a.sugestaoMotor, a.justificativa || 'Sugestão confirmada via lista');
+    }
+
+    // Envia a confirmação de limite ao backend e recarrega
+    function enviarConfirmacao(id, valor, justificativa) {
+      const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
+      if (!isGAS) { alert('Modo demonstração local: confirmação disponível apenas no ambiente Google Sheets.'); return; }
+      if (!(Number(valor) > 0)) { alert('Informe um valor de limite válido.'); return; }
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res && res.success) {
+            loadAllData();
+          } else {
+            alert('Não foi possível confirmar: ' + ((res && res.error) || 'erro desconhecido.'));
+          }
+        })
+        .withFailureHandler(function(err) { alert('Falha de comunicação: ' + err); })
+        .confirmarNovoLimite(id, Number(valor), justificativa);
     }
 
     let uploadTipoAtual = null;
@@ -778,17 +871,7 @@
       if (!selectedAssociateId) return;
       const val = parseFloat(document.getElementById('input-confirm-limit').value);
       const justification = document.getElementById('input-confirm-justification').value;
-
-      try {
-        google.script.run
-          .withSuccessHandler(function() {
-            alert("Limite atualizado!");
-            loadAllData();
-          })
-          .confirmarNovoLimite(selectedAssociateId, val, justification);
-      } catch(e) {
-        alert("Demo Local: Limite atualizado!");
-      }
+      enviarConfirmacao(selectedAssociateId, val, justification);
     }
 
     function openNewProtocolModal() { document.getElementById('new-protocol-modal').classList.remove('hidden'); }
