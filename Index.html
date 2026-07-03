@@ -214,36 +214,45 @@
             <p class="text-gray-500 text-sm">Importe as listas de solicitação de crédito e implantação.</p>
           </div>
 
+          <!-- Input de arquivo oculto e reutilizado por todos os cards -->
+          <input type="file" id="file-input" accept=".csv,.txt,.tsv" class="hidden" onchange="handleFileSelected(event)"/>
+
           <!-- Card Grid -->
           <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div onclick="simulateUpload('Majoração Conta')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
+            <div onclick="triggerUpload('Majoração Conta')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
               <span class="font-bold text-primary text-sm mb-4">Majoração Conta</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para simular upload</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
               </div>
             </div>
-            <div onclick="simulateUpload('Majoração Cartão')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
+            <div onclick="triggerUpload('Majoração Cartão')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
               <span class="font-bold text-primary text-sm mb-4">Majoração Cartão</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para simular upload</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
               </div>
             </div>
-            <div onclick="simulateUpload('Implantação Conta')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
+            <div onclick="triggerUpload('Implantação Conta')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
               <span class="font-bold text-primary text-sm mb-4">Implantação Conta</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para simular upload</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
               </div>
             </div>
-            <div onclick="simulateUpload('Implantação Cartão')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
+            <div onclick="triggerUpload('Implantação Cartão')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
               <span class="font-bold text-primary text-sm mb-4">Implantação Cartão</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para simular upload</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
               </div>
             </div>
+          </div>
+
+          <!-- Faixa de status do processamento -->
+          <div id="upload-status" class="hidden items-center gap-3 bg-secondary-container text-on-secondary-container rounded-lg px-4 py-3 text-sm font-bold">
+            <div class="w-5 h-5 border-2 border-on-secondary-container border-t-transparent rounded-full animate-spin"></div>
+            <span id="upload-status-text">Processando arquivo...</span>
           </div>
 
           <div class="bg-white rounded-lg border border-outline-variant shadow-sm overflow-hidden">
@@ -502,18 +511,99 @@
       document.getElementById('input-confirm-justification').value = assoc.justificativa || "";
     }
 
-    function simulateUpload(tipo) {
-      const fileName = tipo.toLowerCase().replace(/\s/g, '_') + '_lote.csv';
-      try {
-        google.script.run
-          .withSuccessHandler(function() {
-            alert("Upload registrado com sucesso!");
-            loadAllData();
-          })
-          .registrarUpload(fileName, tipo, 150, "Validado", "");
-      } catch (e) {
-        alert("Demo Local: Upload simulado!");
+    let uploadTipoAtual = null;
+
+    // Abre o seletor de arquivos para o tipo de lista clicado
+    function triggerUpload(tipo) {
+      uploadTipoAtual = tipo;
+      const input = document.getElementById('file-input');
+      input.value = ''; // permite reenviar o mesmo arquivo
+      input.click();
+    }
+
+    // Dispara quando o usuário escolhe um arquivo
+    function handleFileSelected(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file || !uploadTipoAtual) return;
+
+      showUploadStatus('Lendo "' + file.name + '"...');
+
+      readFileSmart(file)
+        .then(function(conteudo) {
+          enviarArquivoParaProcessamento(file.name, conteudo, uploadTipoAtual);
+        })
+        .catch(function(err) {
+          hideUploadStatus();
+          alert("Não foi possível ler o arquivo: " + err);
+        });
+    }
+
+    // Lê o arquivo como texto detectando UTF-8 x ISO-8859-1 (comum em exportações bancárias)
+    function readFileSmart(file) {
+      return new Promise(function(resolve, reject) {
+        const reader = new FileReader();
+        reader.onerror = function() { reject(reader.error); };
+        reader.onload = function() {
+          try {
+            const buffer = reader.result;
+            let texto = new TextDecoder('utf-8').decode(buffer);
+            // Se aparecer o caractere de substituição, o arquivo provavelmente é latin1
+            if (texto.indexOf('�') !== -1) {
+              texto = new TextDecoder('iso-8859-1').decode(buffer);
+            }
+            resolve(texto);
+          } catch (e) {
+            reject(e);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    // Envia o conteúdo ao backend (Apps Script) para validar e alimentar a base
+    function enviarArquivoParaProcessamento(nomeArquivo, conteudo, tipoLista) {
+      showUploadStatus('Validando e processando "' + nomeArquivo + '"...');
+
+      const isGoogleAppsScript = typeof google !== 'undefined' &&
+                                 typeof google.script !== 'undefined' &&
+                                 typeof google.script.run !== 'undefined';
+
+      if (!isGoogleAppsScript) {
+        hideUploadStatus();
+        alert("Modo demonstração local: o processamento real dos arquivos base ocorre apenas no ambiente Google Sheets implantado.");
+        return;
       }
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          hideUploadStatus();
+          if (res && res.success) {
+            alert("Arquivo processado com sucesso!\n" + res.registros + " registro(s) importado(s)/atualizado(s) na base.");
+            loadAllData();
+          } else {
+            const msg = (res && res.error) ? res.error : "Erro desconhecido ao processar o arquivo.";
+            alert("Falha ao processar o arquivo:\n" + msg);
+            loadAllData(); // atualiza o histórico, que registra o erro de layout
+          }
+        })
+        .withFailureHandler(function(err) {
+          hideUploadStatus();
+          alert("Falha de comunicação com o servidor: " + err);
+        })
+        .validarEProcessarArquivo(nomeArquivo, conteudo, tipoLista);
+    }
+
+    function showUploadStatus(texto) {
+      const bar = document.getElementById('upload-status');
+      document.getElementById('upload-status-text').innerText = texto;
+      bar.classList.remove('hidden');
+      bar.classList.add('flex');
+    }
+
+    function hideUploadStatus() {
+      const bar = document.getElementById('upload-status');
+      bar.classList.add('hidden');
+      bar.classList.remove('flex');
     }
 
     function submitNewLimit() {

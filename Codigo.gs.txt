@@ -275,12 +275,12 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     }
     
     // Validar se colunas cruciais estão presentes
+    // (comparação sem acentos para tolerar arquivos em ISO-8859-1/UTF-8)
     var colunasFaltantes = [];
     colunasEsperadas.forEach(function(col) {
-      var colLimpa = col.replace(/\r?\n|\r/g, " ").trim().toLowerCase();
+      var colLimpa = normalizarCol(col);
       var achou = cabecalho.some(function(c) {
-        var cLimpo = c.replace(/\r?\n|\r/g, " ").trim().toLowerCase();
-        return cLimpo === colLimpa;
+        return normalizarCol(c) === colLimpa;
       });
       if (!achou) {
         colunasFaltantes.push(col.replace(/\r?\n|\r/g, " "));
@@ -304,7 +304,7 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     var idxSugestao = -1;
     
     cabecalho.forEach(function(c, idx) {
-      var cLimpo = c.replace(/\r?\n|\r/g, " ").trim().toLowerCase();
+      var cLimpo = normalizarCol(c);
       if (cLimpo === "documento") idxDoc = idx;
       else if (cLimpo === "cooperado") idxNome = idx;
       else if (cLimpo === "conta corrente") idxConta = idx;
@@ -312,7 +312,7 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
       else if (cLimpo === "renda mensal") idxRenda = idx;
       else if (cLimpo === "compromet. renda") idxComprometimento = idx;
       else if (cLimpo.indexOf("limite cresol") !== -1) idxLimiteCresol = idx;
-      else if (cLimpo.indexOf("sugestão limite") !== -1 || cLimpo.indexOf("sugestao limite") !== -1) idxSugestao = idx;
+      else if (cLimpo.indexOf("sugestao limite") !== -1) idxSugestao = idx;
     });
     
     var shAssociados = ss.getSheetByName("Associados");
@@ -374,6 +374,15 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     registrarUpload(nomeArquivo, tipoLista, 0, "Erro no Layout", err.toString());
     return { success: false, error: err.toString() };
   }
+}
+
+// Normaliza um cabeçalho de coluna: remove quebras de linha, acentos e caixa
+function normalizarCol(texto) {
+  return String(texto)
+    .replace(/\r?\n|\r/g, " ")
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
 }
 
 function parseDinheiro(valorTexto) {
