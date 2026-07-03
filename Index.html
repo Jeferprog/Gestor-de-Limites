@@ -5,6 +5,8 @@
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
   <title>Cresol Gestão de Limites</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <!-- SheetJS: leitura de arquivos Excel (.xls/.xlsx) no navegador -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
   
@@ -91,8 +93,8 @@
         </div>
         <div class="flex items-center gap-6">
           <div class="flex flex-col items-end">
-            <span class="text-sm font-bold text-primary">Agência 0632</span>
-            <span class="text-[10px] text-gray-500 uppercase font-medium">Ciclo 2024</span>
+            <span class="text-sm font-bold text-primary" id="user-agencia">Agência —</span>
+            <span class="text-[10px] text-gray-500 uppercase font-medium" id="user-escopo">Ciclo 2024</span>
           </div>
           <div class="w-10 h-10 rounded-full border bg-gray-200 overflow-hidden flex items-center justify-center text-primary font-bold">
             ADM
@@ -108,7 +110,15 @@
 
       <!-- Content Views -->
       <div id="content" class="hidden p-8 max-w-[1250px] w-full mx-auto space-y-8">
-        
+
+        <!-- Aviso de acesso (colaborador não cadastrado / sem e-mail) -->
+        <div id="access-banner" class="hidden bg-error-container text-on-error-container border border-on-error-container/20 rounded-lg px-5 py-4 text-sm">
+          <div class="flex items-start gap-3">
+            <span class="material-symbols-outlined">lock</span>
+            <div id="access-banner-text" class="font-medium"></div>
+          </div>
+        </div>
+
         <!-- Tab: Visão Geral -->
         <div id="tab-visao-geral" class="space-y-8">
           <div class="mb-4">
@@ -215,7 +225,7 @@
           </div>
 
           <!-- Input de arquivo oculto e reutilizado por todos os cards -->
-          <input type="file" id="file-input" accept=".csv,.txt,.tsv" class="hidden" onchange="handleFileSelected(event)"/>
+          <input type="file" id="file-input" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" class="hidden" onchange="handleFileSelected(event)"/>
 
           <!-- Card Grid -->
           <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -223,28 +233,28 @@
               <span class="font-bold text-primary text-sm mb-4">Majoração Conta</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar (.xls, .xlsx ou .csv)</p>
               </div>
             </div>
             <div onclick="triggerUpload('Majoração Cartão')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
               <span class="font-bold text-primary text-sm mb-4">Majoração Cartão</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar (.xls, .xlsx ou .csv)</p>
               </div>
             </div>
             <div onclick="triggerUpload('Implantação Conta')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
               <span class="font-bold text-primary text-sm mb-4">Implantação Conta</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar (.xls, .xlsx ou .csv)</p>
               </div>
             </div>
             <div onclick="triggerUpload('Implantação Cartão')" class="bg-white p-6 border-l-4 border-secondary shadow-sm rounded-r-lg hover:shadow cursor-pointer flex flex-col justify-between">
               <span class="font-bold text-primary text-sm mb-4">Implantação Cartão</span>
               <div class="border-2 border-dashed border-gray-200 rounded p-4 text-center">
                 <span class="material-symbols-outlined text-gray-400">cloud_upload</span>
-                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar arquivo (.csv)</p>
+                <p class="text-[10px] text-gray-500 mt-2">Clique para enviar (.xls, .xlsx ou .csv)</p>
               </div>
             </div>
           </div>
@@ -280,9 +290,17 @@
             
             <!-- Left Side: Associates List -->
             <div class="w-[65%] flex flex-col border-r border-outline-variant h-full">
-              <div class="p-4 border-b border-outline-variant bg-gray-50 flex justify-between items-center">
-                <h3 class="font-bold text-primary text-sm">Associados para Análise</h3>
-                <span class="text-xs text-gray-500" id="associates-count">0</span>
+              <div class="p-4 border-b border-outline-variant bg-gray-50 space-y-2">
+                <div class="flex justify-between items-center">
+                  <h3 class="font-bold text-primary text-sm">Associados para Análise</h3>
+                  <span class="text-xs text-gray-500" id="associates-count">0</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-gray-400 text-base">filter_list</span>
+                  <select id="filtro-carteira" onchange="aplicarFiltroCarteira()" class="flex-1 text-xs border-gray-300 rounded py-1.5 bg-white">
+                    <option value="">Todas as carteiras</option>
+                  </select>
+                </div>
               </div>
               <div class="flex-1 overflow-y-auto">
                 <table class="w-full text-left">
@@ -307,23 +325,51 @@
               </div>
 
               <div id="associate-details" class="hidden space-y-4">
-                <h3 class="text-lg font-bold text-primary" id="det-nome">Nome</h3>
-                <p class="text-xs text-gray-500" id="det-meta">CPF</p>
+                <div>
+                  <h3 class="text-lg font-bold text-primary" id="det-nome">Nome</h3>
+                  <p class="text-xs text-gray-500" id="det-meta">CPF</p>
+                  <p class="text-[10px] text-secondary font-bold uppercase mt-1" id="det-carteira">Carteira: —</p>
+                </div>
 
-                <div class="bg-white p-4 rounded border space-y-2">
-                  <p class="text-[10px] text-gray-500 uppercase font-bold">Renda Comprovada</p>
-                  <p class="text-lg font-black text-primary" id="det-renda">R$ 0,00</p>
-                  <div class="flex justify-between text-xs font-bold pt-2 border-t">
-                    <span class="text-gray-500">Comprometimento SCR</span>
-                    <span class="text-secondary" id="det-comprometimento">0%</span>
+                <!-- Bloco Informações -->
+                <div class="bg-white p-4 rounded border">
+                  <p class="text-[10px] text-gray-500 uppercase font-bold mb-2 tracking-wider">Informações</p>
+                  <div class="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                    <div><span class="text-gray-500 block">Score</span><span class="font-bold text-primary" id="det-score">—</span></div>
+                    <div><span class="text-gray-500 block">Ativo Comercial</span><span class="font-bold" id="det-ativo">—</span></div>
+                    <div><span class="text-gray-500 block">IRC</span><span class="font-bold" id="det-irc">—</span></div>
+                    <div><span class="text-gray-500 block">Capital Social</span><span class="font-bold" id="det-capital">—</span></div>
                   </div>
                 </div>
 
+                <!-- Bloco SCR -->
+                <div class="bg-white p-4 rounded border">
+                  <p class="text-[10px] text-gray-500 uppercase font-bold mb-2 tracking-wider">SCR</p>
+                  <div class="space-y-1.5 text-xs">
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">DT Base SCR</span><span class="font-bold text-right" id="det-dtbase">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Emprest. e Financ. SCR</span><span class="font-bold text-right" id="det-emp-scr">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Emprest. e Financ. 360 SCR</span><span class="font-bold text-right" id="det-emp-360">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Emprest. e Financ. Mensal SCR</span><span class="font-bold text-right" id="det-emp-mensal">—</span></div>
+                    <div class="flex justify-between gap-2 pt-1.5 border-t"><span class="text-gray-500">Cheque Especial - Limite SCR</span><span class="font-bold text-right" id="det-limite-scr">—</span></div>
+                  </div>
+                </div>
+
+                <!-- Bloco Renda -->
+                <div class="bg-white p-4 rounded border">
+                  <p class="text-[10px] text-gray-500 uppercase font-bold mb-2 tracking-wider">Renda</p>
+                  <div class="space-y-1.5 text-xs">
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Renda Mensal</span><span class="font-bold text-right text-primary" id="det-renda-mensal">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Compromet. Renda</span><span class="font-bold text-right text-secondary" id="det-comprometimento">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Cheque Especial - Saldo Devedor</span><span class="font-bold text-right" id="det-saldo">—</span></div>
+                  </div>
+                </div>
+
+                <!-- Ação: Novo Limite -->
                 <div class="bg-primary text-white p-4 rounded space-y-3">
                   <p class="text-[10px] opacity-75 font-bold uppercase">Novo Limite Recomendado</p>
                   <p class="text-2xl font-black" id="det-sugestao">R$ 0,00</p>
                   <p class="text-xs opacity-75" id="det-atual">Limite Atual: R$ 0,00</p>
-                  
+
                   <div class="space-y-2 pt-2">
                     <input type="number" id="input-confirm-limit" class="w-full bg-white text-primary font-bold rounded p-2 text-sm border-none"/>
                     <textarea id="input-confirm-justification" rows="2" class="w-full bg-white/15 text-white rounded p-2 text-xs border-none" placeholder="Justificativa..."></textarea>
@@ -364,6 +410,7 @@
   <script>
     let appData = { associados: [], uploads: [], protocolos: [], estatisticas: {} };
     let selectedAssociateId = null;
+    let filtroCarteira = '';
 
     window.onload = function() {
       setTab('visao-geral');
@@ -430,7 +477,8 @@
           { id: 'UP-001', arquivo: 'majoracao_pf_0524.csv', tipoLista: 'Majoração Conta', dataHora: '24/05/2024 - 14:32', registros: 1240, status: 'Validado' }
         ],
         associados: [
-          { id: 'ASC-001', nome: 'RICARDO ALMEIDA SANTOS', cpfCnpj: '123.456.789-00', conta: '10293-4', limiteAtual: 18500, sugestaoMotor: 25000, status: 'AGUARDANDO', rendaComprovada: 15450, comprometimentoSCR: 35, score: 845, inadimplenciaDias: 0, tempoAssociadoAnos: 12 }
+          { id: 'ASC-001', nome: 'RICARDO ALMEIDA SANTOS', cpfCnpj: '123.456.789-00', conta: '10293-4', limiteAtual: 18500, sugestaoMotor: 25000, status: 'AGUARDANDO', rendaComprovada: 15450, comprometimentoSCR: 35, score: 845, inadimplenciaDias: 0, tempoAssociadoAnos: 12, microSegmento: 'PF Varejo', ativoComercial: 'Sim', irc: '0,85', capitalSocial: 1200, dtBaseScr: '05/2024', emprestScr: 5000, emprest360: 4200, emprestMensal: 900, limiteScr: 20000, saldoDevedor: 3500 },
+          { id: 'ASC-002', nome: 'CLAUDIA REGINA SILVA', cpfCnpj: '012.345.678-98', conta: '12.456-7', limiteAtual: 15000, sugestaoMotor: 25000, status: 'AGUARDANDO', rendaComprovada: 9800, comprometimentoSCR: 18, score: 780, inadimplenciaDias: 0, tempoAssociadoAnos: 4, microSegmento: 'PF Alta Renda', ativoComercial: 'Sim', irc: '0,72', capitalSocial: 800, dtBaseScr: '05/2024', emprestScr: 3000, emprest360: 2500, emprestMensal: 400, limiteScr: 18000, saldoDevedor: 1200 }
         ]
       };
       renderAll();
@@ -438,7 +486,47 @@
       document.getElementById('content').classList.remove('hidden');
     }
 
+    // Exibe a agência/escopo do colaborador logado e avisos de acesso
+    function renderUsuario() {
+      const u = appData.usuario;
+      const agenciaEl = document.getElementById('user-agencia');
+      const escopoEl = document.getElementById('user-escopo');
+      const banner = document.getElementById('access-banner');
+      const bannerText = document.getElementById('access-banner-text');
+
+      banner.classList.add('hidden');
+
+      if (!u) { // modo demonstração local, sem controle de acesso
+        agenciaEl.innerText = 'Agência —';
+        escopoEl.innerText = 'Modo demonstração';
+        return;
+      }
+
+      if (!u.email) {
+        agenciaEl.innerText = 'Usuário não identificado';
+        escopoEl.innerText = 'Acesso restrito';
+        bannerText.innerHTML = 'Não foi possível identificar seu e-mail corporativo. Confirme se a implantação do Web App restringe o acesso ao domínio. Nenhum associado é exibido até a identificação.';
+        banner.classList.remove('hidden');
+        return;
+      }
+
+      if (u.isSede) {
+        agenciaEl.innerText = 'SEDE';
+        escopoEl.innerText = 'Acesso total';
+      } else if (u.cadastrado) {
+        agenciaEl.innerText = 'Agência ' + u.agencia;
+        escopoEl.innerText = u.email;
+      } else {
+        agenciaEl.innerText = 'Sem agência';
+        escopoEl.innerText = u.email;
+        bannerText.innerHTML = 'Seu e-mail (<strong>' + u.email + '</strong>) não está cadastrado na aba <strong>Colaboradores</strong>. Solicite o cadastro (e-mail + agência) para visualizar os associados da sua agência.';
+        banner.classList.remove('hidden');
+      }
+    }
+
     function renderAll() {
+      renderUsuario();
+
       document.getElementById('kpi-total-pendente').innerText = formatCurrency(appData.estatisticas.totalPendente);
       document.getElementById('kpi-limite-conta').innerText = formatCurrency(appData.estatisticas.limiteContaTotal);
 
@@ -471,25 +559,58 @@
         uploadTbody.appendChild(tr);
       });
 
-      document.getElementById('associates-count').innerText = appData.associados.length;
+      popularFiltroCarteira();
+      const lista = (appData.associados || []).filter(a =>
+        !filtroCarteira || (a.microSegmento || '') === filtroCarteira
+      );
+
+      document.getElementById('associates-count').innerText = lista.length;
       const assocTbody = document.getElementById('associates-table-body');
       assocTbody.innerHTML = '';
-      appData.associados.forEach(a => {
+      lista.forEach(a => {
         const tr = document.createElement('tr');
         const isSelected = selectedAssociateId === a.id;
         tr.className = "cursor-pointer transition " + (isSelected ? "bg-orange-50 font-bold border-l-4 border-secondary" : "hover:bg-gray-50");
         tr.onclick = function() { selectAssociate(a.id); };
-        tr.innerHTML = 
-          "<td class='p-3'><div class='flex flex-col'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + "</span></div></td>" +
+        const carteira = a.microSegmento ? "<span class='text-[10px] text-secondary'>" + a.microSegmento + "</span>" : "";
+        tr.innerHTML =
+          "<td class='p-3'><div class='flex flex-col'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + "</span>" + carteira + "</div></td>" +
           "<td class='p-3 text-right'>" + formatCurrency(a.limiteAtual) + "</td>" +
           "<td class='p-3 text-right text-secondary'>" + formatCurrency(a.sugestaoMotor) + "</td>" +
           "<td class='p-3 text-center'><span class='px-2 py-0.5 rounded text-[10px] font-bold'>" + a.status + "</span></td>";
         assocTbody.appendChild(tr);
       });
 
-      if (selectedAssociateId) {
-        selectAssociate(selectedAssociateId);
+      if (lista.length === 0) {
+        assocTbody.innerHTML = "<tr><td colspan='4' class='p-6 text-center text-xs text-gray-400'>Nenhum associado para os filtros atuais.</td></tr>";
       }
+
+      // Mantém o detalhamento aberto apenas se o selecionado ainda está na lista filtrada
+      if (selectedAssociateId && lista.some(a => a.id === selectedAssociateId)) {
+        selectAssociate(selectedAssociateId);
+      } else {
+        selectedAssociateId = null;
+        document.getElementById('associate-details').classList.add('hidden');
+        document.getElementById('no-associate-selected').classList.remove('hidden');
+      }
+    }
+
+    // Popula o seletor de carteiras (Micro Segmento) preservando a seleção atual
+    function popularFiltroCarteira() {
+      const sel = document.getElementById('filtro-carteira');
+      if (!sel) return;
+      const carteiras = Array.from(new Set(
+        (appData.associados || []).map(a => a.microSegmento).filter(Boolean)
+      )).sort();
+      sel.innerHTML = "<option value=''>Todas as carteiras</option>" +
+        carteiras.map(c => "<option value=\"" + c + "\">" + c + "</option>").join('');
+      sel.value = filtroCarteira; // restaura seleção (fica vazio se a carteira sumiu)
+      if (sel.value !== filtroCarteira) filtroCarteira = '';
+    }
+
+    function aplicarFiltroCarteira() {
+      filtroCarteira = document.getElementById('filtro-carteira').value;
+      renderAll();
     }
 
     function selectAssociate(id) {
@@ -500,13 +621,33 @@
       document.getElementById('no-associate-selected').classList.add('hidden');
       document.getElementById('associate-details').classList.remove('hidden');
 
+      const txt = function(v) { return (v === undefined || v === null || v === '') ? '—' : v; };
+
       document.getElementById('det-nome').innerText = assoc.nome;
       document.getElementById('det-meta').innerText = "CPF: " + assoc.cpfCnpj + " • Conta: " + assoc.conta;
-      document.getElementById('det-renda').innerText = formatCurrency(assoc.rendaComprovada);
-      document.getElementById('det-comprometimento').innerText = assoc.comprometimentoSCR + "%";
+      document.getElementById('det-carteira').innerText = "Carteira: " + txt(assoc.microSegmento);
+
+      // Bloco Informações
+      document.getElementById('det-score').innerText = txt(assoc.score);
+      document.getElementById('det-ativo').innerText = txt(assoc.ativoComercial);
+      document.getElementById('det-irc').innerText = txt(assoc.irc);
+      document.getElementById('det-capital').innerText = formatCurrency(assoc.capitalSocial || 0);
+
+      // Bloco SCR
+      document.getElementById('det-dtbase').innerText = txt(assoc.dtBaseScr);
+      document.getElementById('det-emp-scr').innerText = formatCurrency(assoc.emprestScr || 0);
+      document.getElementById('det-emp-360').innerText = formatCurrency(assoc.emprest360 || 0);
+      document.getElementById('det-emp-mensal').innerText = formatCurrency(assoc.emprestMensal || 0);
+      document.getElementById('det-limite-scr').innerText = formatCurrency(assoc.limiteScr || 0);
+
+      // Bloco Renda
+      document.getElementById('det-renda-mensal').innerText = formatCurrency(assoc.rendaComprovada || 0);
+      document.getElementById('det-comprometimento').innerText = (assoc.comprometimentoSCR || 0) + "%";
+      document.getElementById('det-saldo').innerText = formatCurrency(assoc.saldoDevedor || 0);
+
+      // Ação
       document.getElementById('det-sugestao').innerText = formatCurrency(assoc.sugestaoMotor);
       document.getElementById('det-atual').innerText = "Limite Atual: " + formatCurrency(assoc.limiteAtual);
-
       document.getElementById('input-confirm-limit').value = assoc.sugestaoMotor;
       document.getElementById('input-confirm-justification').value = assoc.justificativa || "";
     }
@@ -528,7 +669,10 @@
 
       showUploadStatus('Lendo "' + file.name + '"...');
 
-      readFileSmart(file)
+      const ehExcel = /\.(xlsx|xls|xlsm)$/i.test(file.name);
+      const leitura = ehExcel ? lerExcelComoCsv(file) : readFileSmart(file);
+
+      leitura
         .then(function(conteudo) {
           enviarArquivoParaProcessamento(file.name, conteudo, uploadTipoAtual);
         })
@@ -536,6 +680,30 @@
           hideUploadStatus();
           alert("Não foi possível ler o arquivo: " + err);
         });
+    }
+
+    // Converte um arquivo Excel (.xls/.xlsx) para CSV (delimitado por ;) no navegador
+    function lerExcelComoCsv(file) {
+      return new Promise(function(resolve, reject) {
+        if (typeof XLSX === 'undefined') {
+          reject("Biblioteca de leitura de Excel não carregou. Verifique sua conexão e recarregue a página.");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onerror = function() { reject(reader.error); };
+        reader.onload = function() {
+          try {
+            const workbook = XLSX.read(new Uint8Array(reader.result), { type: 'array' });
+            const primeiraAba = workbook.Sheets[workbook.SheetNames[0]];
+            // rawNumbers:false usa o texto formatado das células (preserva R$ e separadores pt-BR)
+            const csv = XLSX.utils.sheet_to_csv(primeiraAba, { FS: ';', rawNumbers: false });
+            resolve(csv);
+          } catch (e) {
+            reject(e);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      });
     }
 
     // Lê o arquivo como texto detectando UTF-8 x ISO-8859-1 (comum em exportações bancárias)

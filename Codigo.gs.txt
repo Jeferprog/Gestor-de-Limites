@@ -21,6 +21,17 @@ function doGet(e) {
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
+// Colunas canônicas da aba Associados (a leitura/gravação é orientada por nome,
+// então novas colunas podem ser adicionadas sem quebrar índices)
+var COLUNAS_ASSOCIADOS = [
+  "ID", "Nome", "CPF/CNPJ", "Conta", "Limite Atual", "Sugestão Motor", "Status",
+  "Renda Comprovada", "Comprometimento SCR", "Score", "Inadimplência Dias",
+  "Tempo Associado (Anos)", "Justificativa", "Novo Limite Confirmado", "Agência",
+  "Micro Segmento", "Ativo Comercial", "IRC", "Capital Social", "DT Base SCR",
+  "Emprest. e Financ. SCR", "Emprest. e Financ. 360 SCR", "Emprest. e Financ. Mensal SCR",
+  "Limite SCR", "Saldo Devedor"
+];
+
 // Inicializa a planilha com as abas e cabeçalhos necessários, caso não existam
 function inicializarPlanilha() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -29,20 +40,16 @@ function inicializarPlanilha() {
   var shAssociados = ss.getSheetByName("Associados");
   if (!shAssociados) {
     shAssociados = ss.insertSheet("Associados");
-    shAssociados.appendRow([
-      "ID", "Nome", "CPF/CNPJ", "Conta", "Limite Atual", "Sugestão Motor", 
-      "Status", "Renda Comprovada", "Comprometimento SCR", "Score", 
-      "Inadimplência Dias", "Tempo Associado (Anos)", "Justificativa", "Novo Limite Confirmado"
-    ]);
-    // Adicionar dados iniciais
-    shAssociados.appendRow(["ASC-001", "RICARDO ALMEIDA SANTOS", "123.456.789-00", "10293-4", 18500, 25000, "AGUARDANDO", 15450, 35, 845, 0, 12, "", ""]);
-    shAssociados.appendRow(["ASC-002", "CLAUDIA REGINA SILVA", "012.345.678-98", "12.456-7", 15000, 25000, "AGUARDANDO", 9800, 18, 780, 0, 4, "", ""]);
-    shAssociados.appendRow(["ASC-003", "AGROINDUSTRIA VERDE LTDA", "04.567.890/0001-44", "24.111-0", 450000, 600000, "CRÍTICO", 180000, 55, 910, 0, 8, "", ""]);
-    shAssociados.appendRow(["ASC-004", "COOPERATIVA AGROPECUÁRIA DO SUL", "10.987.654/0001-32", "31.222-1", 800000, 1200000, "ANÁLISE", 350000, 42, 950, 0, 15, "", ""]);
-    shAssociados.appendRow(["ASC-005", "MARCOS AURÉLIO SOUZA", "432.109.876-54", "19.823-2", 8000, 12000, "APROVADO", 6200, 22, 710, 0, 2, "Aprovado via sistema", 12000]);
-    
+    shAssociados.appendRow(COLUNAS_ASSOCIADOS);
+    // Dados iniciais (ordem segue COLUNAS_ASSOCIADOS)
+    shAssociados.appendRow(["ASC-001", "RICARDO ALMEIDA SANTOS", "123.456.789-00", "10293-4", 18500, 25000, "AGUARDANDO", 15450, 35, 845, 0, 12, "", "", "0632", "PF Varejo", "Sim", "0,85", 1200, "05/2024", 5000, 4200, 900, 20000, 3500]);
+    shAssociados.appendRow(["ASC-002", "CLAUDIA REGINA SILVA", "012.345.678-98", "12.456-7", 15000, 25000, "AGUARDANDO", 9800, 18, 780, 0, 4, "", "", "0632", "PF Alta Renda", "Sim", "0,72", 800, "05/2024", 3000, 2500, 400, 18000, 1200]);
+    shAssociados.appendRow(["ASC-003", "AGROINDUSTRIA VERDE LTDA", "04.567.890/0001-44", "24.111-0", 450000, 600000, "CRÍTICO", 180000, 55, 910, 0, 8, "", "", "0101", "PJ Agro", "Sim", "1,20", 50000, "05/2024", 200000, 180000, 15000, 500000, 60000]);
+    shAssociados.appendRow(["ASC-004", "COOPERATIVA AGROPECUÁRIA DO SUL", "10.987.654/0001-32", "31.222-1", 800000, 1200000, "ANÁLISE", 350000, 42, 950, 0, 15, "", "", "0101", "PJ Empresarial", "Sim", "1,50", 120000, "05/2024", 400000, 350000, 30000, 900000, 120000]);
+    shAssociados.appendRow(["ASC-005", "MARCOS AURÉLIO SOUZA", "432.109.876-54", "19.823-2", 8000, 12000, "APROVADO", 6200, 22, 710, 0, 2, "Aprovado via sistema", 12000, "0632", "PF Varejo", "Não", "0,60", 500, "05/2024", 2000, 1800, 200, 10000, 800]);
+
     // Auto-ajusta largura das colunas
-    shAssociados.autoResizeColumns(1, 14);
+    shAssociados.autoResizeColumns(1, COLUNAS_ASSOCIADOS.length);
   }
   
   // 2. Aba de Uploads (Histórico de Arquivos)
@@ -70,6 +77,25 @@ function inicializarPlanilha() {
     shProtocolos.autoResizeColumns(1, 6);
   }
   
+  // 4. Aba de Colaboradores (controle de acesso por agência)
+  var shColab = ss.getSheetByName("Colaboradores");
+  if (!shColab) {
+    shColab = ss.insertSheet("Colaboradores");
+    shColab.appendRow(["Email", "Nome", "Agência"]);
+    // O usuário que implantar/abrir primeiro entra como SEDE (acesso total),
+    // evitando que fique sem acesso durante a configuração inicial.
+    var emailAtual = "";
+    try { emailAtual = Session.getActiveUser().getEmail() || ""; } catch (e) { emailAtual = ""; }
+    if (emailAtual) {
+      shColab.appendRow([emailAtual, "Administrador (você)", "SEDE"]);
+    }
+    shColab.appendRow(["gerente.exemplo@cresol.com.br", "Gerente Exemplo Ag. 0632", "0632"]);
+    shColab.autoResizeColumns(1, 3);
+  }
+
+  // Garante todas as colunas (incl. novas) em planilhas já existentes (migração)
+  garantirColunasAssociados();
+
   // Remove a aba padrão Sheet1 se houver mais abas criadas
   var defaultSheet = ss.getSheetByName("Sheet1") || ss.getSheetByName("Página1");
   if (defaultSheet && ss.getSheets().length > 1) {
@@ -85,28 +111,59 @@ function obterDadosCompletos() {
     inicializarPlanilha();
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. Carrega Associados
+    // Identifica o colaborador logado e sua agência (controle de acesso)
+    var usuario = obterUsuarioAtual();
+
+    // 1. Carrega Associados (leitura orientada por nome de coluna)
     var shAssociados = ss.getSheetByName("Associados");
+    var mapaA = garantirColunasAssociados();
     var dadosAssociados = shAssociados.getDataRange().getValues();
     var associados = [];
     for (var i = 1; i < dadosAssociados.length; i++) {
       var r = dadosAssociados[i];
+      var g = function(nome) { var idx = mapaA[nome]; return (idx === undefined) ? "" : r[idx]; };
       associados.push({
-        id: r[0],
-        nome: r[1],
-        cpfCnpj: r[2],
-        conta: r[3],
-        limiteAtual: Number(r[4]) || 0,
-        sugestaoMotor: Number(r[5]) || 0,
-        status: r[6] || "AGUARDANDO",
-        rendaComprovada: Number(r[7]) || 0,
-        comprometimentoSCR: Number(r[8]) || 0,
-        score: Number(r[9]) || 0,
-        inadimplenciaDias: Number(r[10]) || 0,
-        tempoAssociadoAnos: Number(r[11]) || 0,
-        justificativa: r[12] || "",
-        novoLimiteConfirmado: r[13] ? Number(r[13]) : null
+        id: g("id"),
+        nome: g("nome"),
+        cpfCnpj: g("cpf/cnpj"),
+        conta: g("conta"),
+        limiteAtual: Number(g("limite atual")) || 0,
+        sugestaoMotor: Number(g("sugestao motor")) || 0,
+        status: g("status") || "AGUARDANDO",
+        rendaComprovada: Number(g("renda comprovada")) || 0,
+        comprometimentoSCR: Number(g("comprometimento scr")) || 0,
+        score: Number(g("score")) || 0,
+        inadimplenciaDias: Number(g("inadimplencia dias")) || 0,
+        tempoAssociadoAnos: Number(g("tempo associado (anos)")) || 0,
+        justificativa: g("justificativa") || "",
+        novoLimiteConfirmado: g("novo limite confirmado") !== "" ? Number(g("novo limite confirmado")) : null,
+        agencia: String(g("agencia") || "").trim(),
+        microSegmento: String(g("micro segmento") || "").trim(),
+        ativoComercial: String(g("ativo comercial") || "").trim(),
+        irc: String(g("irc") || "").trim(),
+        capitalSocial: Number(g("capital social")) || 0,
+        dtBaseScr: String(g("dt base scr") || "").trim(),
+        emprestScr: Number(g("emprest. e financ. scr")) || 0,
+        emprest360: Number(g("emprest. e financ. 360 scr")) || 0,
+        emprestMensal: Number(g("emprest. e financ. mensal scr")) || 0,
+        limiteScr: Number(g("limite scr")) || 0,
+        saldoDevedor: Number(g("saldo devedor")) || 0
       });
+    }
+
+    // Aplica o filtro por agência:
+    // - SEDE: vê todos os associados
+    // - agência específica: vê apenas os da sua agência
+    // - não cadastrado: não vê nenhum associado
+    if (!usuario.isSede) {
+      if (usuario.cadastrado) {
+        var agUsuario = normalizarCol(usuario.agencia);
+        associados = associados.filter(function(a) {
+          return normalizarCol(a.agencia) === agUsuario;
+        });
+      } else {
+        associados = [];
+      }
     }
 
     // 2. Carrega Uploads
@@ -156,6 +213,7 @@ function obterDadosCompletos() {
     });
 
     return {
+      usuario: usuario,
       associados: associados,
       uploads: uploads.reverse(), // Ordena mais novos primeiro
       protocolos: protocolos,
@@ -177,20 +235,24 @@ function confirmarNovoLimite(id, novoLimite, justificativa) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Associados");
+    var m = mapaColunas(sheet);
     var data = sheet.getDataRange().getValues();
-    
+
+    var colId = m["id"], colNome = m["nome"], colStatus = m["status"];
+    var colJust = m["justificativa"], colNovo = m["novo limite confirmado"];
+
     for (var i = 1; i < data.length; i++) {
-      if (data[i][0] === id) {
+      if (data[i][colId] === id) {
         var linha = i + 1;
-        sheet.getRange(linha, 7).setValue("APROVADO"); // Status
-        sheet.getRange(linha, 13).setValue(justificativa); // Justificativa
-        sheet.getRange(linha, 14).setValue(novoLimite); // Novo Limite Confirmado
-        
+        sheet.getRange(linha, colStatus + 1).setValue("APROVADO");
+        sheet.getRange(linha, colJust + 1).setValue(justificativa);
+        sheet.getRange(linha, colNovo + 1).setValue(novoLimite);
+
         // Adiciona um protocolo de aprovação registrado
         var shProtocolos = ss.getSheetByName("Protocolos");
         var novoId = "#2024-" + String(shProtocolos.getLastRow()).padStart(3, '0');
-        shProtocolos.appendRow([novoId, data[i][1], "Limite de Conta", novoLimite, obterDataAtualFormatada(), "Aprovado"]);
-        
+        shProtocolos.appendRow([novoId, data[i][colNome], "Limite de Conta", novoLimite, obterDataAtualFormatada(), "Aprovado"]);
+
         return { success: true };
       }
     }
@@ -234,22 +296,30 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     inicializarPlanilha();
     
+    // Remove BOM (comum em arquivos exportados em UTF-8) antes de qualquer parsing
+    conteudoTexto = String(conteudoTexto).replace(/^﻿/, '');
+
     var linhas = conteudoTexto.split(/\r?\n/);
     if (linhas.length === 0 || linhas[0].trim() === "") {
       return { success: false, error: "Arquivo vazio ou inválido." };
     }
-    
+
     var primeiraLinha = linhas[0];
-    var delimitador = ";";
-    if (primeiraLinha.indexOf("\t") !== -1) {
-      delimitador = "\t";
-    } else if (primeiraLinha.indexOf(",") !== -1 && primeiraLinha.indexOf(";") === -1) {
-      delimitador = ",";
-    }
-    
+
+    // Detecta o delimitador contando qual separador mais aparece no cabeçalho
+    var delimitador = detectarDelimitador(primeiraLinha);
+
     var cabecalho = primeiraLinha.split(delimitador).map(function(c) {
       return c.replace(/^["']|["']$/g, '').trim();
     });
+
+    // Se não foi possível separar em colunas, o layout/delimitador é inválido
+    if (cabecalho.length < 2) {
+      var erroDelim = "Não foi possível identificar as colunas do arquivo. " +
+        "Verifique se o separador é tabulação, ponto e vírgula (;) ou vírgula (,).";
+      registrarUpload(nomeArquivo, tipoLista, 0, "Erro no Layout", erroDelim);
+      return { success: false, error: erroDelim };
+    }
     
     // Cabeçalhos Oficiais fornecidos pela Cresol
     var colunasEsperadas = [];
@@ -293,33 +363,47 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
       return { success: false, error: erroMsg, colunasFaltantes: colunasFaltantes };
     }
     
-    // Mapear índices das colunas para gravação
-    var idxDoc = -1;
-    var idxNome = -1;
-    var idxConta = -1;
-    var idxScore = -1;
-    var idxRenda = -1;
-    var idxComprometimento = -1;
-    var idxLimiteCresol = -1;
-    var idxSugestao = -1;
-    
-    cabecalho.forEach(function(c, idx) {
+    // Mapear índices das colunas do arquivo para gravação
+    var idx = {
+      doc: -1, nome: -1, conta: -1, microSeg: -1, score: -1, ativoComercial: -1,
+      irc: -1, capitalSocial: -1, dtBaseScr: -1, emprestScr: -1, emprest360: -1,
+      emprestMensal: -1, renda: -1, comprometimento: -1, limiteScr: -1,
+      saldoDevedor: -1, limiteCresol: -1, sugestao: -1, agencia: -1
+    };
+
+    cabecalho.forEach(function(c, i) {
       var cLimpo = normalizarCol(c);
-      if (cLimpo === "documento") idxDoc = idx;
-      else if (cLimpo === "cooperado") idxNome = idx;
-      else if (cLimpo === "conta corrente") idxConta = idx;
-      else if (cLimpo === "score") idxScore = idx;
-      else if (cLimpo === "renda mensal") idxRenda = idx;
-      else if (cLimpo === "compromet. renda") idxComprometimento = idx;
-      else if (cLimpo.indexOf("limite cresol") !== -1) idxLimiteCresol = idx;
-      else if (cLimpo.indexOf("sugestao limite") !== -1) idxSugestao = idx;
+      if (cLimpo === "documento") idx.doc = i;
+      else if (cLimpo === "cooperado") idx.nome = i;
+      else if (cLimpo === "conta corrente") idx.conta = i;
+      else if (cLimpo === "micro segmento") idx.microSeg = i;
+      else if (cLimpo === "score") idx.score = i;
+      else if (cLimpo === "ativo comercial") idx.ativoComercial = i;
+      else if (cLimpo === "irc") idx.irc = i;
+      else if (cLimpo === "capital social") idx.capitalSocial = i;
+      else if (cLimpo === "dt base scr") idx.dtBaseScr = i;
+      else if (cLimpo === "emprest. e financ. scr") idx.emprestScr = i;
+      else if (cLimpo === "emprest. e financ. 360 scr") idx.emprest360 = i;
+      else if (cLimpo === "emprest. e financ. mensal scr") idx.emprestMensal = i;
+      else if (cLimpo === "renda mensal") idx.renda = i;
+      else if (cLimpo === "compromet. renda") idx.comprometimento = i;
+      else if (cLimpo === "agencia") idx.agencia = i;
+      else if (cLimpo.indexOf("limite cresol") !== -1) idx.limiteCresol = i;
+      else if (cLimpo.indexOf("sugestao limite") !== -1) idx.sugestao = i;
+      else if (cLimpo.indexOf("limite scr") !== -1) idx.limiteScr = i;
+      else if (cLimpo.indexOf("saldo devedor") !== -1 &&
+               (cLimpo.indexOf("cheque") !== -1 || cLimpo.indexOf("cartao") !== -1)) idx.saldoDevedor = i;
     });
-    
+
+    // Garante todas as colunas na aba Associados e obtém o mapa (0-based)
+    var mapaA = garantirColunasAssociados();
     var shAssociados = ss.getSheetByName("Associados");
+    var totalCols = shAssociados.getLastColumn();
     var dadosExistem = shAssociados.getDataRange().getValues();
+    var colDoc = mapaA["cpf/cnpj"];
     var cpfsExistentes = {};
     for (var i = 1; i < dadosExistem.length; i++) {
-      var cpf = String(dadosExistem[i][2]).trim();
+      var cpf = String(dadosExistem[i][colDoc]).trim();
       cpfsExistentes[cpf] = i + 1;
     }
     
@@ -332,39 +416,65 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
       var colunas = linhaTexto.split(delimitador).map(function(c) {
         return c.replace(/^["']|["']$/g, '').trim();
       });
-      
+
       if (colunas.length < cabecalho.length) continue;
-      
-      var doc = colunas[idxDoc];
-      var nome = colunas[idxNome];
-      var conta = colunas[idxConta];
-      var score = Number(colunas[idxScore]) || 650;
-      var renda = parseDinheiro(colunas[idxRenda]);
-      var comprometimento = parseFloat(colunas[idxComprometimento]) || 25;
-      var limiteAtual = parseDinheiro(colunas[idxLimiteCresol]);
-      var sugestao = parseDinheiro(colunas[idxSugestao]);
-      
+
+      var pega = function(i) { return (i === -1) ? "" : (colunas[i] || ""); };
+
+      var doc = pega(idx.doc);
+      var nome = pega(idx.nome);
       if (!doc || !nome) continue;
-      
+
+      // Monta os campos derivados do arquivo (money via parseDinheiro; texto direto)
+      var campos = {
+        "nome": nome,
+        "conta": pega(idx.conta),
+        "limite atual": parseDinheiro(pega(idx.limiteCresol)),
+        "sugestao motor": parseDinheiro(pega(idx.sugestao)),
+        "status": "AGUARDANDO",
+        "renda comprovada": parseDinheiro(pega(idx.renda)),
+        "comprometimento scr": parseFloat(pega(idx.comprometimento)) || 0,
+        "score": Number(pega(idx.score)) || 0,
+        "micro segmento": String(pega(idx.microSeg)).trim(),
+        "ativo comercial": String(pega(idx.ativoComercial)).trim(),
+        "irc": String(pega(idx.irc)).trim(),
+        "capital social": parseDinheiro(pega(idx.capitalSocial)),
+        "dt base scr": String(pega(idx.dtBaseScr)).trim(),
+        "emprest. e financ. scr": parseDinheiro(pega(idx.emprestScr)),
+        "emprest. e financ. 360 scr": parseDinheiro(pega(idx.emprest360)),
+        "emprest. e financ. mensal scr": parseDinheiro(pega(idx.emprestMensal)),
+        "limite scr": parseDinheiro(pega(idx.limiteScr)),
+        "saldo devedor": parseDinheiro(pega(idx.saldoDevedor))
+      };
+      var agencia = (idx.agencia !== -1) ? String(pega(idx.agencia)).trim() : "";
+      if (agencia) campos["agencia"] = agencia;
+
       registrosProcessados++;
       var docFormatado = String(doc).trim();
-      
+
+      var setCampo = function(arr, nomeCol, valor) {
+        var i = mapaA[nomeCol];
+        if (i !== undefined) arr[i] = valor;
+      };
+
       if (cpfsExistentes[docFormatado]) {
+        // Atualiza: parte da linha existente e sobrescreve os campos do arquivo
         var l = cpfsExistentes[docFormatado];
-        shAssociados.getRange(l, 2).setValue(nome);
-        shAssociados.getRange(l, 4).setValue(conta);
-        shAssociados.getRange(l, 5).setValue(limiteAtual);
-        shAssociados.getRange(l, 6).setValue(sugestao);
-        shAssociados.getRange(l, 7).setValue("AGUARDANDO");
-        shAssociados.getRange(l, 8).setValue(renda);
-        shAssociados.getRange(l, 9).setValue(comprometimento);
-        shAssociados.getRange(l, 10).setValue(score);
+        var linhaArr = dadosExistem[l - 1].slice();
+        while (linhaArr.length < totalCols) linhaArr.push("");
+        for (var nomeCol in campos) setCampo(linhaArr, nomeCol, campos[nomeCol]);
+        shAssociados.getRange(l, 1, 1, totalCols).setValues([linhaArr]);
       } else {
+        // Novo associado
         var novoId = "ASC-" + String(shAssociados.getLastRow() + 1).padStart(3, '0');
-        shAssociados.appendRow([
-          novoId, nome, docFormatado, conta, limiteAtual, sugestao, 
-          "AGUARDANDO", renda, comprometimento, score, 0, 3, "", ""
-        ]);
+        var novaLinha = [];
+        for (var k = 0; k < totalCols; k++) novaLinha.push("");
+        setCampo(novaLinha, "id", novoId);
+        setCampo(novaLinha, "cpf/cnpj", docFormatado);
+        setCampo(novaLinha, "inadimplencia dias", 0);
+        setCampo(novaLinha, "tempo associado (anos)", 3);
+        for (var nomeCol2 in campos) setCampo(novaLinha, nomeCol2, campos[nomeCol2]);
+        shAssociados.appendRow(novaLinha);
       }
     }
     
@@ -374,6 +484,80 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     registrarUpload(nomeArquivo, tipoLista, 0, "Erro no Layout", err.toString());
     return { success: false, error: err.toString() };
   }
+}
+
+// Identifica o colaborador logado (via conta Google) e sua agência na aba Colaboradores
+function obterUsuarioAtual() {
+  var resultado = { email: "", agencia: "", isSede: false, cadastrado: false };
+  try {
+    resultado.email = Session.getActiveUser().getEmail() || "";
+  } catch (e) {
+    resultado.email = "";
+  }
+  var emailNorm = String(resultado.email).trim().toLowerCase();
+  if (!emailNorm) return resultado; // e-mail indisponível nesta implantação
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Colaboradores");
+  if (!sh) return resultado;
+
+  var dados = sh.getDataRange().getValues();
+  for (var i = 1; i < dados.length; i++) {
+    var e = String(dados[i][0] || "").trim().toLowerCase();
+    if (e && e === emailNorm) {
+      resultado.agencia = String(dados[i][2] || "").trim();
+      resultado.cadastrado = true;
+      resultado.isSede = normalizarCol(resultado.agencia).indexOf("sede") !== -1;
+      break;
+    }
+  }
+  return resultado;
+}
+
+// Monta um mapa {nomeColunaNormalizado: índice 0-based} a partir do cabeçalho da aba
+function mapaColunas(sheet) {
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var mapa = {};
+  for (var i = 0; i < header.length; i++) {
+    var n = normalizarCol(header[i]);
+    if (n && !(n in mapa)) mapa[n] = i;
+  }
+  return mapa;
+}
+
+// Garante que a aba Associados possua todas as colunas canônicas (adiciona as
+// faltantes ao final) e retorna o mapa {nomeNormalizado: índice 0-based}
+function garantirColunasAssociados() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Associados");
+  if (!sh) return {};
+  var lastCol = Math.max(sh.getLastColumn(), 1);
+  var header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var existentes = header.map(function(h) { return normalizarCol(h); });
+  COLUNAS_ASSOCIADOS.forEach(function(col) {
+    if (existentes.indexOf(normalizarCol(col)) === -1) {
+      lastCol++;
+      sh.getRange(1, lastCol).setValue(col);
+      existentes.push(normalizarCol(col));
+    }
+  });
+  return mapaColunas(sh);
+}
+
+// Detecta o delimitador do CSV/TSV escolhendo o separador mais frequente no cabeçalho
+function detectarDelimitador(linha) {
+  var candidatos = ["\t", ";", ",", "|"];
+  var melhor = ";";
+  var maxOcorrencias = -1;
+  candidatos.forEach(function(d) {
+    var ocorrencias = linha.split(d).length - 1;
+    if (ocorrencias > maxOcorrencias) {
+      maxOcorrencias = ocorrencias;
+      melhor = d;
+    }
+  });
+  return melhor;
 }
 
 // Normaliza um cabeçalho de coluna: remove quebras de linha, acentos e caixa
