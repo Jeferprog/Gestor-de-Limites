@@ -234,22 +234,30 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     inicializarPlanilha();
     
+    // Remove BOM (comum em arquivos exportados em UTF-8) antes de qualquer parsing
+    conteudoTexto = String(conteudoTexto).replace(/^﻿/, '');
+
     var linhas = conteudoTexto.split(/\r?\n/);
     if (linhas.length === 0 || linhas[0].trim() === "") {
       return { success: false, error: "Arquivo vazio ou inválido." };
     }
-    
+
     var primeiraLinha = linhas[0];
-    var delimitador = ";";
-    if (primeiraLinha.indexOf("\t") !== -1) {
-      delimitador = "\t";
-    } else if (primeiraLinha.indexOf(",") !== -1 && primeiraLinha.indexOf(";") === -1) {
-      delimitador = ",";
-    }
-    
+
+    // Detecta o delimitador contando qual separador mais aparece no cabeçalho
+    var delimitador = detectarDelimitador(primeiraLinha);
+
     var cabecalho = primeiraLinha.split(delimitador).map(function(c) {
       return c.replace(/^["']|["']$/g, '').trim();
     });
+
+    // Se não foi possível separar em colunas, o layout/delimitador é inválido
+    if (cabecalho.length < 2) {
+      var erroDelim = "Não foi possível identificar as colunas do arquivo. " +
+        "Verifique se o separador é tabulação, ponto e vírgula (;) ou vírgula (,).";
+      registrarUpload(nomeArquivo, tipoLista, 0, "Erro no Layout", erroDelim);
+      return { success: false, error: erroDelim };
+    }
     
     // Cabeçalhos Oficiais fornecidos pela Cresol
     var colunasEsperadas = [];
@@ -374,6 +382,21 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     registrarUpload(nomeArquivo, tipoLista, 0, "Erro no Layout", err.toString());
     return { success: false, error: err.toString() };
   }
+}
+
+// Detecta o delimitador do CSV/TSV escolhendo o separador mais frequente no cabeçalho
+function detectarDelimitador(linha) {
+  var candidatos = ["\t", ";", ",", "|"];
+  var melhor = ";";
+  var maxOcorrencias = -1;
+  candidatos.forEach(function(d) {
+    var ocorrencias = linha.split(d).length - 1;
+    if (ocorrencias > maxOcorrencias) {
+      maxOcorrencias = ocorrencias;
+      melhor = d;
+    }
+  });
+  return melhor;
 }
 
 // Normaliza um cabeçalho de coluna: remove quebras de linha, acentos e caixa
