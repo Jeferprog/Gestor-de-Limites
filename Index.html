@@ -294,6 +294,11 @@
                   <h3 class="font-bold text-primary text-sm">Associados para Análise</h3>
                   <span class="text-xs text-gray-500" id="associates-count">0</span>
                 </div>
+                <div class="relative">
+                  <span class="material-symbols-outlined text-gray-400 text-base absolute left-2 top-1/2 -translate-y-1/2">search</span>
+                  <input id="busca-associado" type="text" oninput="onBuscaInput()" placeholder="Buscar por nome ou CPF/CNPJ..."
+                         class="w-full text-xs border-gray-300 rounded py-1.5 pl-8 pr-2 bg-white"/>
+                </div>
                 <div class="grid grid-cols-3 gap-2">
                   <select id="filtro-produto" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
                     <option value="">Todos os produtos</option>
@@ -421,6 +426,9 @@
     let filtroCarteira = '';
     let filtroProduto = '';
     let filtroOperacao = '';
+    let filtroBusca = '';
+    let buscaTimer = null;
+    const MAX_LISTA = 200; // limite de linhas exibidas por vez (bases grandes)
     let podeImportar = true; // SEDE (ou modos fail-safe) podem importar listas
 
     window.onload = function() {
@@ -600,47 +608,29 @@
       });
 
       popularFiltroCarteira();
-      const lista = (appData.associados || []).filter(a =>
+      renderListaAssociados();
+    }
+
+    // Renderiza a lista de associados: aplica filtros + busca, limita a exibição
+    // e faz UM único write no DOM (rápido mesmo com milhares de registros).
+    function renderListaAssociados() {
+      const busca = filtroBusca.trim().toLowerCase();
+      const listaCompleta = (appData.associados || []).filter(a =>
         (!filtroCarteira || (a.microSegmento || '') === filtroCarteira) &&
         (!filtroProduto || (a.produto || 'Conta') === filtroProduto) &&
-        (!filtroOperacao || (a.operacao || '') === filtroOperacao)
+        (!filtroOperacao || (a.operacao || '') === filtroOperacao) &&
+        (!busca || String(a.nome || '').toLowerCase().indexOf(busca) !== -1 ||
+                   String(a.cpfCnpj || '').toLowerCase().indexOf(busca) !== -1)
       );
 
-      document.getElementById('associates-count').innerText = lista.length;
+      const total = listaCompleta.length;
+      const lista = listaCompleta.slice(0, MAX_LISTA);
+      document.getElementById('associates-count').innerText =
+        (total > MAX_LISTA) ? (MAX_LISTA + ' de ' + total) : total;
+
       const assocTbody = document.getElementById('associates-table-body');
-      assocTbody.innerHTML = '';
-      lista.forEach(a => {
-        const tr = document.createElement('tr');
-        const isSelected = selectedAssociateId === a.id;
-        tr.className = "cursor-pointer transition " + (isSelected ? "bg-orange-50 border-l-4 border-secondary" : "hover:bg-gray-50");
-        tr.onclick = function() { selectAssociate(a.id); };
-        const carteira = a.microSegmento ? "<span class='text-[10px] text-secondary'>" + a.microSegmento + "</span>" : "";
-        const tags = "<div class='flex items-center gap-1 mt-0.5'>" + produtoBadge(a.produto) + operacaoBadge(a.operacao) + "</div>";
-        const aprovado = a.novoLimiteConfirmado !== null && a.novoLimiteConfirmado !== undefined && a.novoLimiteConfirmado !== '';
 
-        // Coluna Sugestão: valor confirmado (verde) ou sugestão + botão de confirmar
-        let sugestaoCell;
-        if (aprovado) {
-          sugestaoCell = "<span class='font-bold text-green-700' title='Novo limite confirmado'>" + formatCurrency(a.novoLimiteConfirmado) + "</span>";
-        } else {
-          sugestaoCell =
-            "<div class='flex items-center justify-end gap-1.5'>" +
-              "<span class='text-secondary'>" + formatCurrency(a.sugestaoMotor) + "</span>" +
-              "<button onclick=\"event.stopPropagation(); confirmarSugestaoLista('" + a.id + "')\" title='Confirmar limite sugerido' " +
-                "class='w-6 h-6 flex items-center justify-center rounded bg-green-600 text-white hover:brightness-110'>" +
-                "<span class='material-symbols-outlined text-sm'>check</span></button>" +
-            "</div>";
-        }
-
-        tr.innerHTML =
-          "<td class='p-3'><div class='flex flex-col'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + (carteira ? " · " : "") + "</span>" + carteira + tags + "</div></td>" +
-          "<td class='p-3 text-right'>" + formatCurrency(a.limiteAtual) + "</td>" +
-          "<td class='p-3 text-right'>" + sugestaoCell + "</td>" +
-          "<td class='p-3 text-center'>" + statusBadge(a.status) + "</td>";
-        assocTbody.appendChild(tr);
-      });
-
-      if (lista.length === 0) {
+      if (total === 0) {
         let diag = "Nenhum associado para exibir.";
         const d = appData.debug;
         if (d) {
@@ -648,16 +638,55 @@
                   " · lidos: " + d.associadosAntesFiltro + " · após filtro: " + d.associadosAposFiltro + "</span>";
         }
         assocTbody.innerHTML = "<tr><td colspan='4' class='p-6 text-center text-xs text-gray-400'>" + diag + "</td></tr>";
+      } else {
+        const linhas = lista.map(function(a) {
+          const isSelected = selectedAssociateId === a.id;
+          const carteira = a.microSegmento ? "<span class='text-[10px] text-secondary'>" + a.microSegmento + "</span>" : "";
+          const tags = "<div class='flex items-center gap-1 mt-0.5'>" + produtoBadge(a.produto) + operacaoBadge(a.operacao) + "</div>";
+          const aprovado = a.novoLimiteConfirmado !== null && a.novoLimiteConfirmado !== undefined && a.novoLimiteConfirmado !== '';
+          let sugestaoCell;
+          if (aprovado) {
+            sugestaoCell = "<span class='font-bold text-green-700' title='Novo limite confirmado'>" + formatCurrency(a.novoLimiteConfirmado) + "</span>";
+          } else {
+            sugestaoCell =
+              "<div class='flex items-center justify-end gap-1.5'>" +
+                "<span class='text-secondary'>" + formatCurrency(a.sugestaoMotor) + "</span>" +
+                "<button onclick=\"event.stopPropagation(); confirmarSugestaoLista('" + a.id + "')\" title='Confirmar limite sugerido' " +
+                  "class='w-6 h-6 flex items-center justify-center rounded bg-green-600 text-white hover:brightness-110'>" +
+                  "<span class='material-symbols-outlined text-sm'>check</span></button>" +
+              "</div>";
+          }
+          return "<tr onclick=\"selectAssociate('" + a.id + "')\" class='cursor-pointer transition " +
+              (isSelected ? "bg-orange-50 border-l-4 border-secondary" : "hover:bg-gray-50") + "'>" +
+            "<td class='p-3'><div class='flex flex-col'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + "</span>" + carteira + tags + "</div></td>" +
+            "<td class='p-3 text-right'>" + formatCurrency(a.limiteAtual) + "</td>" +
+            "<td class='p-3 text-right'>" + sugestaoCell + "</td>" +
+            "<td class='p-3 text-center'>" + statusBadge(a.status) + "</td>" +
+          "</tr>";
+        });
+        if (total > MAX_LISTA) {
+          linhas.push("<tr><td colspan='4' class='p-3 text-center text-[11px] text-gray-400'>Mostrando os primeiros " + MAX_LISTA + " de " + total + " — refine pela busca ou pelos filtros.</td></tr>");
+        }
+        assocTbody.innerHTML = linhas.join('');
       }
 
-      // Mantém o detalhamento aberto apenas se o selecionado ainda está na lista filtrada
-      if (selectedAssociateId && lista.some(a => a.id === selectedAssociateId)) {
+      // Mantém o detalhamento aberto se o selecionado ainda está na lista (mesmo fora do topo)
+      if (selectedAssociateId && listaCompleta.some(function(a) { return a.id === selectedAssociateId; })) {
         selectAssociate(selectedAssociateId);
       } else {
         selectedAssociateId = null;
         document.getElementById('associate-details').classList.add('hidden');
         document.getElementById('no-associate-selected').classList.remove('hidden');
       }
+    }
+
+    // Busca com debounce (re-renderiza só a lista, não a tela inteira)
+    function onBuscaInput() {
+      clearTimeout(buscaTimer);
+      buscaTimer = setTimeout(function() {
+        filtroBusca = document.getElementById('busca-associado').value;
+        renderListaAssociados();
+      }, 250);
     }
 
     // Popula o seletor de carteiras (Micro Segmento) preservando a seleção atual
@@ -677,7 +706,7 @@
       filtroCarteira = document.getElementById('filtro-carteira').value;
       filtroProduto = document.getElementById('filtro-produto').value;
       filtroOperacao = document.getElementById('filtro-operacao').value;
-      renderAll();
+      renderListaAssociados();
     }
 
     // Badges de Produto e Operação
