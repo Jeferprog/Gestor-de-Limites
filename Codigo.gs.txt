@@ -103,13 +103,31 @@ function obterDadosCompletos() {
     // Identifica o colaborador logado e sua agência (controle de acesso)
     var usuario = obterUsuarioAtual();
 
-    // 1. Carrega Associados (leitura orientada por nome de coluna)
+    // Regras de acesso (fail-safe para não esconder tudo durante a configuração):
+    // - vê TUDO se: for SEDE, OU não há colaboradores cadastrados (setup),
+    //   OU o e-mail não pôde ser identificado nesta implantação
+    // - vê apenas a sua agência se cadastrado com agência específica
+    // - vê NADA apenas se está identificado E há colaboradores, mas ele não consta
+    var verTudo = usuario.isSede || usuario.semColaboradores || usuario.semIdentificacao;
+    var codUsuario = verTudo ? null : codigoAgencia(usuario.agencia);
+
+    // 1. Carrega Associados já aplicando o filtro por agência ANTES de montar os
+    //    objetos (monta apenas o que o usuário pode ver — leve mesmo em bases grandes)
     var shAssociados = ss.getSheetByName("Associados");
     var mapaA = garantirColunasAssociados();
     var dadosAssociados = shAssociados.getDataRange().getValues();
+    var colAgencia = mapaA["agencia"];
     var associados = [];
     for (var i = 1; i < dadosAssociados.length; i++) {
       var r = dadosAssociados[i];
+
+      // Filtro de acesso aplicado por linha (sem montar o objeto ainda)
+      if (!verTudo) {
+        if (!usuario.cadastrado) break; // não vê nenhum associado
+        var agRow = codigoAgencia(colAgencia !== undefined ? r[colAgencia] : "");
+        if (agRow !== codUsuario) continue;
+      }
+
       var g = function(nome) { var idx = mapaA[nome]; return (idx === undefined) ? "" : r[idx]; };
       associados.push({
         id: g("id"),
@@ -144,23 +162,6 @@ function obterDadosCompletos() {
 
     var totalLinhasAssociados = dadosAssociados.length;   // inclui cabeçalho
     var associadosAntesFiltro = associados.length;
-
-    // Regras de acesso (fail-safe para não esconder tudo durante a configuração):
-    // - vê TUDO se: for SEDE, OU não há colaboradores cadastrados (setup),
-    //   OU o e-mail não pôde ser identificado nesta implantação
-    // - vê apenas a sua agência se cadastrado com agência específica
-    // - vê NADA apenas se está identificado E há colaboradores, mas ele não consta
-    var verTudo = usuario.isSede || usuario.semColaboradores || usuario.semIdentificacao;
-    if (!verTudo) {
-      if (usuario.cadastrado) {
-        var codUsuario = codigoAgencia(usuario.agencia);
-        associados = associados.filter(function(a) {
-          return codigoAgencia(a.agencia) === codUsuario;
-        });
-      } else {
-        associados = [];
-      }
-    }
 
     // 2. Carrega Uploads
     var shUploads = ss.getSheetByName("Uploads");
