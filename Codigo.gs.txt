@@ -21,6 +21,9 @@ function doGet(e) {
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
+// Limite mínimo de crédito aplicado à sugestão do motor (em R$)
+var LIMITE_MINIMO = 500;
+
 // Colunas canônicas da aba Associados (a leitura/gravação é orientada por nome,
 // então novas colunas podem ser adicionadas sem quebrar índices)
 var COLUNAS_ASSOCIADOS = [
@@ -444,7 +447,8 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
         "nome": nome,
         "conta": pega(idx.conta),
         "limite atual": parseDinheiro(pega(idx.limiteCresol)),
-        "sugestao motor": arredondarParaBaixoMil(parseDinheiro(pega(idx.sugestao))),
+        // Arredonda para baixo ao milhar, respeitando o limite mínimo de R$ 500
+        "sugestao motor": Math.max(arredondarParaBaixoMil(parseDinheiro(pega(idx.sugestao))), LIMITE_MINIMO),
         "status": "AGUARDANDO",
         "renda comprovada": parseDinheiro(pega(idx.renda)),
         "comprometimento scr": parseDinheiro(pega(idx.comprometimento)),
