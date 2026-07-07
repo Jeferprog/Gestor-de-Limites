@@ -128,23 +128,23 @@
 
           <!-- KPI Cards -->
           <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-secondary flex flex-col justify-between h-32">
-              <div>
-                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Total Pendente</span>
-                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-total-pendente">R$ 0,00</h3>
-              </div>
-              <div class="flex items-center text-gray-500 font-bold text-xs gap-1">
-                <span class="material-symbols-outlined text-sm">hourglass_empty</span> <span id="kpi-pendentes-count">0</span> protocolos pendentes
-              </div>
-            </div>
-
             <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-primary flex flex-col justify-between h-32">
               <div>
                 <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Limite de Conta (Atual)</span>
                 <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-limite-conta">R$ 0,00</h3>
               </div>
               <div class="flex items-center text-primary font-bold text-xs gap-1">
-                <span class="material-symbols-outlined text-sm">groups</span> <span id="kpi-associados-count">0</span> associados
+                <span class="material-symbols-outlined text-sm">account_balance_wallet</span> Cheque Especial
+              </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-secondary flex flex-col justify-between h-32">
+              <div>
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Limite de Cartão (Atual)</span>
+                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-limite-cartao">R$ 0,00</h3>
+              </div>
+              <div class="flex items-center text-secondary font-bold text-xs gap-1">
+                <span class="material-symbols-outlined text-sm">credit_card</span> Cartão de Crédito
               </div>
             </div>
 
@@ -288,9 +288,18 @@
                   <h3 class="font-bold text-primary text-sm">Associados para Análise</h3>
                   <span class="text-xs text-gray-500" id="associates-count">0</span>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="material-symbols-outlined text-gray-400 text-base">filter_list</span>
-                  <select id="filtro-carteira" onchange="aplicarFiltroCarteira()" class="flex-1 text-xs border-gray-300 rounded py-1.5 bg-white">
+                <div class="grid grid-cols-3 gap-2">
+                  <select id="filtro-produto" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
+                    <option value="">Todos os produtos</option>
+                    <option value="Conta">Conta (Cheque Esp.)</option>
+                    <option value="Cartão">Cartão de Crédito</option>
+                  </select>
+                  <select id="filtro-operacao" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
+                    <option value="">Todas as operações</option>
+                    <option value="Majoração">Majoração</option>
+                    <option value="Implantação">Implantação</option>
+                  </select>
+                  <select id="filtro-carteira" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
                     <option value="">Todas as carteiras</option>
                   </select>
                 </div>
@@ -343,7 +352,7 @@
                     <div class="flex justify-between gap-2"><span class="text-gray-500">Emprest. e Financ. SCR</span><span class="font-bold text-right" id="det-emp-scr">—</span></div>
                     <div class="flex justify-between gap-2"><span class="text-gray-500">Emprest. e Financ. 360 SCR</span><span class="font-bold text-right" id="det-emp-360">—</span></div>
                     <div class="flex justify-between gap-2"><span class="text-gray-500">Emprest. e Financ. Mensal SCR</span><span class="font-bold text-right" id="det-emp-mensal">—</span></div>
-                    <div class="flex justify-between gap-2 pt-1.5 border-t"><span class="text-gray-500">Cheque Especial - Limite SCR</span><span class="font-bold text-right" id="det-limite-scr">—</span></div>
+                    <div class="flex justify-between gap-2 pt-1.5 border-t"><span class="text-gray-500" id="det-label-limite-scr">Cheque Especial - Limite SCR</span><span class="font-bold text-right" id="det-limite-scr">—</span></div>
                   </div>
                 </div>
 
@@ -353,7 +362,7 @@
                   <div class="space-y-1.5 text-xs">
                     <div class="flex justify-between gap-2"><span class="text-gray-500">Renda Mensal</span><span class="font-bold text-right text-primary" id="det-renda-mensal">—</span></div>
                     <div class="flex justify-between gap-2"><span class="text-gray-500">Compromet. Renda</span><span class="font-bold text-right text-secondary" id="det-comprometimento">—</span></div>
-                    <div class="flex justify-between gap-2"><span class="text-gray-500">Cheque Especial - Saldo Devedor</span><span class="font-bold text-right" id="det-saldo">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500" id="det-label-saldo">Cheque Especial - Saldo Devedor</span><span class="font-bold text-right" id="det-saldo">—</span></div>
                   </div>
                 </div>
 
@@ -404,6 +413,8 @@
     let appData = { associados: [], uploads: [], protocolos: [], estatisticas: {} };
     let selectedAssociateId = null;
     let filtroCarteira = '';
+    let filtroProduto = '';
+    let filtroOperacao = '';
 
     window.onload = function() {
       setTab('visao-geral');
@@ -436,27 +447,40 @@
       if (isGoogleAppsScript) {
         google.script.run
           .withSuccessHandler(function(response) {
-            if (response && response.error) {
-              console.error("Erro no Apps Script:", response.error);
-              alert("Erro na planilha do Google Sheets: " + response.error + "\n\nUsando banco de dados simulado para demonstração.");
-              simulateLocalDatabase();
-            } else {
+            try {
+              if (response && response.error) {
+                mostrarErroBackend(response.error);
+                return;
+              }
               appData = response || appData;
               renderAll();
               document.getElementById('loading').classList.add('hidden');
               document.getElementById('content').classList.remove('hidden');
+            } catch (e) {
+              mostrarErroBackend('Erro ao renderizar a tela: ' + (e && e.message ? e.message : e));
             }
           })
           .withFailureHandler(function(err) {
-            console.error("Falha na chamada do Apps Script:", err);
-            alert("Falha de conexão com o Google Sheets: " + err + "\n\nAtivando banco de dados simulado.");
-            simulateLocalDatabase();
+            mostrarErroBackend('Falha de comunicação com o servidor: ' + err);
           })
           .obterDadosCompletos();
       } else {
         console.log("Ambiente local/preview detectado. Ativando simulador local.");
         simulateLocalDatabase();
       }
+    }
+
+    // Exibe o erro real na tela (em vez de esconder), para facilitar o diagnóstico
+    function mostrarErroBackend(msg) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('content').classList.remove('hidden');
+      const banner = document.getElementById('access-banner');
+      const bannerText = document.getElementById('access-banner-text');
+      if (banner && bannerText) {
+        bannerText.innerHTML = '<strong>Não foi possível carregar os dados.</strong><br>' + String(msg);
+        banner.classList.remove('hidden');
+      }
+      console.error('Erro backend:', msg);
     }
 
     function simulateLocalDatabase() {
@@ -527,7 +551,7 @@
 
       const protoTbody = document.getElementById('protocol-table-body');
       protoTbody.innerHTML = '';
-      appData.protocolos.forEach(p => {
+      (appData.protocolos || []).forEach(p => {
         const tr = document.createElement('tr');
         tr.className = "hover:bg-gray-50 transition";
         tr.innerHTML = 
@@ -542,7 +566,7 @@
 
       const uploadTbody = document.getElementById('uploads-table-body');
       uploadTbody.innerHTML = '';
-      appData.uploads.forEach(u => {
+      (appData.uploads || []).forEach(u => {
         const tr = document.createElement('tr');
         tr.className = "hover:bg-gray-50 transition";
         tr.innerHTML = 
@@ -556,7 +580,9 @@
 
       popularFiltroCarteira();
       const lista = (appData.associados || []).filter(a =>
-        !filtroCarteira || (a.microSegmento || '') === filtroCarteira
+        (!filtroCarteira || (a.microSegmento || '') === filtroCarteira) &&
+        (!filtroProduto || (a.produto || 'Conta') === filtroProduto) &&
+        (!filtroOperacao || (a.operacao || '') === filtroOperacao)
       );
 
       document.getElementById('associates-count').innerText = lista.length;
@@ -568,6 +594,7 @@
         tr.className = "cursor-pointer transition " + (isSelected ? "bg-orange-50 border-l-4 border-secondary" : "hover:bg-gray-50");
         tr.onclick = function() { selectAssociate(a.id); };
         const carteira = a.microSegmento ? "<span class='text-[10px] text-secondary'>" + a.microSegmento + "</span>" : "";
+        const tags = "<div class='flex items-center gap-1 mt-0.5'>" + produtoBadge(a.produto) + operacaoBadge(a.operacao) + "</div>";
         const aprovado = a.novoLimiteConfirmado !== null && a.novoLimiteConfirmado !== undefined && a.novoLimiteConfirmado !== '';
 
         // Coluna Sugestão: valor confirmado (verde) ou sugestão + botão de confirmar
@@ -585,7 +612,7 @@
         }
 
         tr.innerHTML =
-          "<td class='p-3'><div class='flex flex-col'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + "</span>" + carteira + "</div></td>" +
+          "<td class='p-3'><div class='flex flex-col'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + (carteira ? " · " : "") + "</span>" + carteira + tags + "</div></td>" +
           "<td class='p-3 text-right'>" + formatCurrency(a.limiteAtual) + "</td>" +
           "<td class='p-3 text-right'>" + sugestaoCell + "</td>" +
           "<td class='p-3 text-center'>" + statusBadge(a.status) + "</td>";
@@ -593,7 +620,13 @@
       });
 
       if (lista.length === 0) {
-        assocTbody.innerHTML = "<tr><td colspan='4' class='p-6 text-center text-xs text-gray-400'>Nenhum associado para os filtros atuais.</td></tr>";
+        let diag = "Nenhum associado para exibir.";
+        const d = appData.debug;
+        if (d) {
+          diag += "<br><span class='text-[10px] text-gray-400'>Diagnóstico — linhas na aba: " + d.linhasNaAba +
+                  " · lidos: " + d.associadosAntesFiltro + " · após filtro: " + d.associadosAposFiltro + "</span>";
+        }
+        assocTbody.innerHTML = "<tr><td colspan='4' class='p-6 text-center text-xs text-gray-400'>" + diag + "</td></tr>";
       }
 
       // Mantém o detalhamento aberto apenas se o selecionado ainda está na lista filtrada
@@ -619,9 +652,27 @@
       if (sel.value !== filtroCarteira) filtroCarteira = '';
     }
 
-    function aplicarFiltroCarteira() {
+    function aplicarFiltros() {
       filtroCarteira = document.getElementById('filtro-carteira').value;
+      filtroProduto = document.getElementById('filtro-produto').value;
+      filtroOperacao = document.getElementById('filtro-operacao').value;
       renderAll();
+    }
+
+    // Badges de Produto e Operação
+    function produtoBadge(produto) {
+      const p = produto || 'Conta';
+      const cartao = String(p).toLowerCase().indexOf('cart') !== -1;
+      const cls = cartao ? 'bg-purple-100 text-purple-700' : 'bg-teal-100 text-teal-700';
+      const icone = cartao ? 'credit_card' : 'account_balance_wallet';
+      return "<span class='inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold " + cls + "'>" +
+             "<span class='material-symbols-outlined' style='font-size:11px'>" + icone + "</span>" + p + "</span>";
+    }
+    function operacaoBadge(operacao) {
+      if (!operacao) return "";
+      const maj = String(operacao).toLowerCase().indexOf('major') !== -1;
+      const cls = maj ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600';
+      return "<span class='px-1.5 py-0.5 rounded text-[9px] font-bold " + cls + "'>" + operacao + "</span>";
     }
 
     function selectAssociate(id) {
@@ -634,9 +685,18 @@
 
       const txt = function(v) { return (v === undefined || v === null || v === '') ? '—' : v; };
 
+      const ehCartao = String(assoc.produto || 'Conta').toLowerCase().indexOf('cart') !== -1;
+      const rotuloProduto = ehCartao ? 'Cartão de Crédito' : 'Cheque Especial';
+
       document.getElementById('det-nome').innerText = assoc.nome;
       document.getElementById('det-meta').innerText = "CPF: " + assoc.cpfCnpj + " • Conta: " + assoc.conta;
-      document.getElementById('det-carteira').innerText = "Carteira: " + txt(assoc.microSegmento);
+      document.getElementById('det-carteira').innerHTML =
+        produtoBadge(assoc.produto) + operacaoBadge(assoc.operacao) +
+        (assoc.microSegmento ? "<span class='text-[10px] text-secondary ml-1'>" + assoc.microSegmento + "</span>" : "");
+
+      // Rótulos do bloco SCR/Renda adaptados ao produto
+      document.getElementById('det-label-limite-scr').innerText = rotuloProduto + " - Limite SCR";
+      document.getElementById('det-label-saldo').innerText = rotuloProduto + " - Saldo Devedor";
 
       // Bloco Informações
       document.getElementById('det-score').innerText = txt(assoc.score);
@@ -680,16 +740,13 @@
       const est = appData.estatisticas || {};
       const assoc = appData.associados || [];
 
-      document.getElementById('kpi-total-pendente').innerText = formatCurrency(est.totalPendente || 0);
       document.getElementById('kpi-limite-conta').innerText = formatCurrency(est.limiteContaTotal || 0);
+      document.getElementById('kpi-limite-cartao').innerText = formatCurrency(est.limiteCartaoTotal || 0);
       document.getElementById('kpi-novo-limite').innerText = formatCurrency(est.totalNovoLimite || 0);
 
-      const pendentes = (appData.protocolos || []).filter(p => p.status === 'Pendente').length;
       const aprovados = assoc.filter(a => String(a.status).toUpperCase() === 'APROVADO').length;
       const aguardando = assoc.filter(a => String(a.status).toUpperCase() === 'AGUARDANDO').length;
 
-      document.getElementById('kpi-pendentes-count').innerText = pendentes;
-      document.getElementById('kpi-associados-count').innerText = assoc.length;
       document.getElementById('kpi-aprovados-count').innerText = aprovados;
       document.getElementById('kpi-aguardando-count').innerText = aguardando;
 
@@ -737,22 +794,44 @@
       enviarConfirmacao(id, a.sugestaoMotor, a.justificativa || 'Sugestão confirmada via lista');
     }
 
-    // Envia a confirmação de limite ao backend e recarrega
+    // Confirma o limite com atualização OTIMISTA: a tela muda na hora e a
+    // gravação ocorre em segundo plano (reverte automaticamente se falhar).
     function enviarConfirmacao(id, valor, justificativa) {
+      const val = Number(valor);
+      if (!(val > 0)) { alert('Informe um valor de limite válido.'); return; }
+
+      const a = (appData.associados || []).find(x => x.id === id);
+      if (!a) return;
+
+      // Guarda o estado anterior para poder reverter em caso de erro
+      const backup = { status: a.status, novoLimiteConfirmado: a.novoLimiteConfirmado, justificativa: a.justificativa };
+
+      // Aplica imediatamente na interface
+      a.status = 'APROVADO';
+      a.novoLimiteConfirmado = val;
+      a.justificativa = justificativa;
+      renderAll();
+
       const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
-      if (!isGAS) { alert('Modo demonstração local: confirmação disponível apenas no ambiente Google Sheets.'); return; }
-      if (!(Number(valor) > 0)) { alert('Informe um valor de limite válido.'); return; }
+      if (!isGAS) return; // preview local: mantém apenas a atualização otimista
+
+      const reverter = function(msg) {
+        a.status = backup.status;
+        a.novoLimiteConfirmado = backup.novoLimiteConfirmado;
+        a.justificativa = backup.justificativa;
+        renderAll();
+        alert(msg);
+      };
 
       google.script.run
         .withSuccessHandler(function(res) {
-          if (res && res.success) {
-            loadAllData();
-          } else {
-            alert('Não foi possível confirmar: ' + ((res && res.error) || 'erro desconhecido.'));
+          if (!(res && res.success)) {
+            reverter('Não foi possível confirmar: ' + ((res && res.error) || 'erro desconhecido.'));
           }
+          // sucesso: a tela já está atualizada, nada a fazer
         })
-        .withFailureHandler(function(err) { alert('Falha de comunicação: ' + err); })
-        .confirmarNovoLimite(id, Number(valor), justificativa);
+        .withFailureHandler(function(err) { reverter('Falha de comunicação: ' + err); })
+        .confirmarNovoLimite(id, val, justificativa);
     }
 
     let uploadTipoAtual = null;
