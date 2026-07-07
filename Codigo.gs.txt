@@ -232,33 +232,38 @@ function obterDadosCompletos() {
   }
 }
 
-// Atualiza o limite de crédito do associado e muda seu status
+// Atualiza o limite de crédito do associado e muda seu status.
+// Lê apenas a coluna de ID (rápido mesmo em bases grandes).
 function confirmarNovoLimite(id, novoLimite, justificativa) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Associados");
     var m = mapaColunas(sheet);
-    var data = sheet.getDataRange().getValues();
-
     var colId = m["id"], colNome = m["nome"], colStatus = m["status"];
     var colJust = m["justificativa"], colNovo = m["novo limite confirmado"];
 
-    for (var i = 1; i < data.length; i++) {
-      if (data[i][colId] === id) {
-        var linha = i + 1;
-        sheet.getRange(linha, colStatus + 1).setValue("APROVADO");
-        sheet.getRange(linha, colJust + 1).setValue(justificativa);
-        sheet.getRange(linha, colNovo + 1).setValue(novoLimite);
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { success: false, error: "Base vazia" };
 
-        // Adiciona um protocolo de aprovação registrado
-        var shProtocolos = ss.getSheetByName("Protocolos");
-        var novoId = "#2024-" + String(shProtocolos.getLastRow()).padStart(3, '0');
-        shProtocolos.appendRow([novoId, data[i][colNome], "Limite de Conta", novoLimite, obterDataAtualFormatada(), "Aprovado"]);
-
-        return { success: true };
-      }
+    // Localiza a linha lendo somente a coluna de ID
+    var ids = sheet.getRange(2, colId + 1, lastRow - 1, 1).getValues();
+    var linha = -1;
+    for (var i = 0; i < ids.length; i++) {
+      if (ids[i][0] === id) { linha = i + 2; break; }
     }
-    return { success: false, error: "Associado não encontrado" };
+    if (linha === -1) return { success: false, error: "Associado não encontrado" };
+
+    var nome = sheet.getRange(linha, colNome + 1).getValue();
+    sheet.getRange(linha, colStatus + 1).setValue("APROVADO");
+    sheet.getRange(linha, colJust + 1).setValue(justificativa);
+    sheet.getRange(linha, colNovo + 1).setValue(novoLimite);
+
+    // Registra o protocolo de aprovação
+    var shProtocolos = ss.getSheetByName("Protocolos");
+    var novoId = "#2024-" + String(shProtocolos.getLastRow()).padStart(3, '0');
+    shProtocolos.appendRow([novoId, nome, "Limite de Conta", novoLimite, obterDataAtualFormatada(), "Aprovado"]);
+
+    return { success: true };
   } catch (err) {
     return { success: false, error: err.toString() };
   }

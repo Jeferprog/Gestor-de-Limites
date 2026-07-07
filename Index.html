@@ -756,22 +756,44 @@
       enviarConfirmacao(id, a.sugestaoMotor, a.justificativa || 'Sugestão confirmada via lista');
     }
 
-    // Envia a confirmação de limite ao backend e recarrega
+    // Confirma o limite com atualização OTIMISTA: a tela muda na hora e a
+    // gravação ocorre em segundo plano (reverte automaticamente se falhar).
     function enviarConfirmacao(id, valor, justificativa) {
+      const val = Number(valor);
+      if (!(val > 0)) { alert('Informe um valor de limite válido.'); return; }
+
+      const a = (appData.associados || []).find(x => x.id === id);
+      if (!a) return;
+
+      // Guarda o estado anterior para poder reverter em caso de erro
+      const backup = { status: a.status, novoLimiteConfirmado: a.novoLimiteConfirmado, justificativa: a.justificativa };
+
+      // Aplica imediatamente na interface
+      a.status = 'APROVADO';
+      a.novoLimiteConfirmado = val;
+      a.justificativa = justificativa;
+      renderAll();
+
       const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
-      if (!isGAS) { alert('Modo demonstração local: confirmação disponível apenas no ambiente Google Sheets.'); return; }
-      if (!(Number(valor) > 0)) { alert('Informe um valor de limite válido.'); return; }
+      if (!isGAS) return; // preview local: mantém apenas a atualização otimista
+
+      const reverter = function(msg) {
+        a.status = backup.status;
+        a.novoLimiteConfirmado = backup.novoLimiteConfirmado;
+        a.justificativa = backup.justificativa;
+        renderAll();
+        alert(msg);
+      };
 
       google.script.run
         .withSuccessHandler(function(res) {
-          if (res && res.success) {
-            loadAllData();
-          } else {
-            alert('Não foi possível confirmar: ' + ((res && res.error) || 'erro desconhecido.'));
+          if (!(res && res.success)) {
+            reverter('Não foi possível confirmar: ' + ((res && res.error) || 'erro desconhecido.'));
           }
+          // sucesso: a tela já está atualizada, nada a fazer
         })
-        .withFailureHandler(function(err) { alert('Falha de comunicação: ' + err); })
-        .confirmarNovoLimite(id, Number(valor), justificativa);
+        .withFailureHandler(function(err) { reverter('Falha de comunicação: ' + err); })
+        .confirmarNovoLimite(id, val, justificativa);
     }
 
     let uploadTipoAtual = null;
