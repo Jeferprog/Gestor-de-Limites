@@ -36,32 +36,21 @@ var COLUNAS_ASSOCIADOS = [
 function inicializarPlanilha() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 1. Aba de Associados
+  // 1. Aba de Associados (apenas cabeçalho; dados vêm da importação)
   var shAssociados = ss.getSheetByName("Associados");
   if (!shAssociados) {
     shAssociados = ss.insertSheet("Associados");
     shAssociados.appendRow(COLUNAS_ASSOCIADOS);
-    // Dados iniciais (ordem segue COLUNAS_ASSOCIADOS)
-    shAssociados.appendRow(["ASC-001", "RICARDO ALMEIDA SANTOS", "123.456.789-00", "10293-4", 18500, 25000, "AGUARDANDO", 15450, 35, 845, 0, 12, "", "", "0632", "PF Varejo", "Sim", "0,85", 1200, "05/2024", 5000, 4200, 900, 20000, 3500]);
-    shAssociados.appendRow(["ASC-002", "CLAUDIA REGINA SILVA", "012.345.678-98", "12.456-7", 15000, 25000, "AGUARDANDO", 9800, 18, 780, 0, 4, "", "", "0632", "PF Alta Renda", "Sim", "0,72", 800, "05/2024", 3000, 2500, 400, 18000, 1200]);
-    shAssociados.appendRow(["ASC-003", "AGROINDUSTRIA VERDE LTDA", "04.567.890/0001-44", "24.111-0", 450000, 600000, "CRÍTICO", 180000, 55, 910, 0, 8, "", "", "0101", "PJ Agro", "Sim", "1,20", 50000, "05/2024", 200000, 180000, 15000, 500000, 60000]);
-    shAssociados.appendRow(["ASC-004", "COOPERATIVA AGROPECUÁRIA DO SUL", "10.987.654/0001-32", "31.222-1", 800000, 1200000, "ANÁLISE", 350000, 42, 950, 0, 15, "", "", "0101", "PJ Empresarial", "Sim", "1,50", 120000, "05/2024", 400000, 350000, 30000, 900000, 120000]);
-    shAssociados.appendRow(["ASC-005", "MARCOS AURÉLIO SOUZA", "432.109.876-54", "19.823-2", 8000, 12000, "APROVADO", 6200, 22, 710, 0, 2, "Aprovado via sistema", 12000, "0632", "PF Varejo", "Não", "0,60", 500, "05/2024", 2000, 1800, 200, 10000, 800]);
-
-    // Auto-ajusta largura das colunas
+    shAssociados.setFrozenRows(1);
     shAssociados.autoResizeColumns(1, COLUNAS_ASSOCIADOS.length);
   }
-  
+
   // 2. Aba de Uploads (Histórico de Arquivos)
   var shUploads = ss.getSheetByName("Uploads");
   if (!shUploads) {
     shUploads = ss.insertSheet("Uploads");
     shUploads.appendRow(["ID", "Arquivo", "Tipo de Lista", "Data/Hora", "Registros", "Status", "Detalhes Erro"]);
-    shUploads.appendRow(["UP-001", "majoracao_pf_0524.csv", "Majoração Conta", "24/05/2024 - 14:32", 1240, "Validado", ""]);
-    shUploads.appendRow(["UP-002", "implante_cartao_v2.xlsx", "Implantação Cartão", "24/05/2024 - 11:15", 85, "Erro no Layout", "Coluna 'Tipo de Conta' inválida ou ausente"]);
-    shUploads.appendRow(["UP-003", "cartao_credito_pisc.csv", "Majoração Cartão", "23/05/2024 - 17:50", 3500, "Processando", ""]);
-    shUploads.appendRow(["UP-004", "contas_novas_sede.csv", "Implantação Conta", "23/05/2024 - 09:10", 210, "Validado", ""]);
-    
+    shUploads.setFrozenRows(1);
     shUploads.autoResizeColumns(1, 7);
   }
 
@@ -70,13 +59,10 @@ function inicializarPlanilha() {
   if (!shProtocolos) {
     shProtocolos = ss.insertSheet("Protocolos");
     shProtocolos.appendRow(["ID Protocolo", "Associado", "Tipo", "Valor Solicitado", "Data", "Status"]);
-    shProtocolos.appendRow(["#2024-001", "Carlos Eduardo Alcantara", "Limite de Conta", 50000, "12/10/2024", "Pendente"]);
-    shProtocolos.appendRow(["#2024-002", "Beatriz Ramos Silva", "Limite de Cartão", 15000, "12/10/2024", "Aprovado"]);
-    shProtocolos.appendRow(["#2024-003", "Indústria de Móveis Sul Ltda", "Custeio Agrícola", 450000, "11/10/2024", "Análise"]);
-    
+    shProtocolos.setFrozenRows(1);
     shProtocolos.autoResizeColumns(1, 6);
   }
-  
+
   // 4. Aba de Colaboradores (controle de acesso por agência)
   var shColab = ss.getSheetByName("Colaboradores");
   if (!shColab) {
@@ -89,7 +75,7 @@ function inicializarPlanilha() {
     if (emailAtual) {
       shColab.appendRow([emailAtual, "Administrador (você)", "SEDE"]);
     }
-    shColab.appendRow(["gerente.exemplo@cresol.com.br", "Gerente Exemplo Ag. 0632", "0632"]);
+    shColab.setFrozenRows(1);
     shColab.autoResizeColumns(1, 3);
   }
 
@@ -151,15 +137,17 @@ function obterDadosCompletos() {
       });
     }
 
-    // Aplica o filtro por agência:
-    // - SEDE: vê todos os associados
-    // - agência específica: vê apenas os da sua agência
-    // - não cadastrado: não vê nenhum associado
-    if (!usuario.isSede) {
+    // Regras de acesso (fail-safe para não esconder tudo durante a configuração):
+    // - vê TUDO se: for SEDE, OU não há colaboradores cadastrados (setup),
+    //   OU o e-mail não pôde ser identificado nesta implantação
+    // - vê apenas a sua agência se cadastrado com agência específica
+    // - vê NADA apenas se está identificado E há colaboradores, mas ele não consta
+    var verTudo = usuario.isSede || usuario.semColaboradores || usuario.semIdentificacao;
+    if (!verTudo) {
       if (usuario.cadastrado) {
-        var agUsuario = normalizarCol(usuario.agencia);
+        var codUsuario = codigoAgencia(usuario.agencia);
         associados = associados.filter(function(a) {
-          return normalizarCol(a.agencia) === agUsuario;
+          return codigoAgencia(a.agencia) === codUsuario;
         });
       } else {
         associados = [];
@@ -207,9 +195,12 @@ function obterDadosCompletos() {
       }
     });
 
+    // Limite de conta = soma dos limites atuais; novo limite = soma dos confirmados
     var limiteContaTotal = 0;
+    var totalNovoLimite = 0;
     associados.forEach(function(a) {
       limiteContaTotal += a.limiteAtual;
+      if (a.novoLimiteConfirmado) totalNovoLimite += a.novoLimiteConfirmado;
     });
 
     return {
@@ -218,11 +209,10 @@ function obterDadosCompletos() {
       uploads: uploads.reverse(), // Ordena mais novos primeiro
       protocolos: protocolos,
       estatisticas: {
-        totalPendente: totalPendente || 1245000,
-        limiteContaTotal: limiteContaTotal || 8920450,
-        limiteCartaoTotal: 3412000,
-        limiteContaUtilizadoPercent: 92,
-        revisaoDiasRestantes: 2
+        totalPendente: totalPendente,
+        limiteContaTotal: limiteContaTotal,
+        totalNovoLimite: totalNovoLimite,
+        totalAssociados: associados.length
       }
     };
   } catch (err) {
@@ -401,31 +391,38 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     var totalCols = shAssociados.getLastColumn();
     var dadosExistem = shAssociados.getDataRange().getValues();
     var colDoc = mapaA["cpf/cnpj"];
+
+    // Índice CPF -> posição (0-based) na matriz em memória
     var cpfsExistentes = {};
     for (var i = 1; i < dadosExistem.length; i++) {
       var cpf = String(dadosExistem[i][colDoc]).trim();
-      cpfsExistentes[cpf] = i + 1;
+      if (cpf) cpfsExistentes[cpf] = i;
     }
-    
+
+    var setCampo = function(arr, nomeCol, valor) {
+      var ci = mapaA[nomeCol];
+      if (ci !== undefined) arr[ci] = valor;
+    };
+
     var registrosProcessados = 0;
-    
+    var contadorId = dadosExistem.length; // próximo número sequencial de ASC-xxx
+
+    // PROCESSAMENTO EM MEMÓRIA (sem tocar na planilha dentro do loop)
     for (var i = 1; i < linhas.length; i++) {
       var linhaTexto = linhas[i].trim();
       if (linhaTexto === "") continue;
-      
+
       var colunas = linhaTexto.split(delimitador).map(function(c) {
         return c.replace(/^["']|["']$/g, '').trim();
       });
-
       if (colunas.length < cabecalho.length) continue;
 
-      var pega = function(i) { return (i === -1) ? "" : (colunas[i] || ""); };
+      var pega = function(j) { return (j === -1) ? "" : (colunas[j] || ""); };
 
       var doc = pega(idx.doc);
       var nome = pega(idx.nome);
       if (!doc || !nome) continue;
 
-      // Monta os campos derivados do arquivo (money via parseDinheiro; texto direto)
       var campos = {
         "nome": nome,
         "conta": pega(idx.conta),
@@ -433,7 +430,7 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
         "sugestao motor": parseDinheiro(pega(idx.sugestao)),
         "status": "AGUARDANDO",
         "renda comprovada": parseDinheiro(pega(idx.renda)),
-        "comprometimento scr": parseFloat(pega(idx.comprometimento)) || 0,
+        "comprometimento scr": parseDinheiro(pega(idx.comprometimento)),
         "score": Number(pega(idx.score)) || 0,
         "micro segmento": String(pega(idx.microSeg)).trim(),
         "ativo comercial": String(pega(idx.ativoComercial)).trim(),
@@ -451,33 +448,36 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
 
       registrosProcessados++;
       var docFormatado = String(doc).trim();
+      var nomeCol;
 
-      var setCampo = function(arr, nomeCol, valor) {
-        var i = mapaA[nomeCol];
-        if (i !== undefined) arr[i] = valor;
-      };
-
-      if (cpfsExistentes[docFormatado]) {
-        // Atualiza: parte da linha existente e sobrescreve os campos do arquivo
-        var l = cpfsExistentes[docFormatado];
-        var linhaArr = dadosExistem[l - 1].slice();
-        while (linhaArr.length < totalCols) linhaArr.push("");
-        for (var nomeCol in campos) setCampo(linhaArr, nomeCol, campos[nomeCol]);
-        shAssociados.getRange(l, 1, 1, totalCols).setValues([linhaArr]);
+      if (cpfsExistentes[docFormatado] !== undefined) {
+        // Atualiza a linha existente em memória (preserva colunas não vindas do arquivo)
+        var linhaArr = dadosExistem[cpfsExistentes[docFormatado]];
+        for (nomeCol in campos) setCampo(linhaArr, nomeCol, campos[nomeCol]);
       } else {
-        // Novo associado
-        var novoId = "ASC-" + String(shAssociados.getLastRow() + 1).padStart(3, '0');
+        // Novo associado (acrescenta à matriz em memória)
         var novaLinha = [];
         for (var k = 0; k < totalCols; k++) novaLinha.push("");
-        setCampo(novaLinha, "id", novoId);
+        setCampo(novaLinha, "id", "ASC-" + String(contadorId).padStart(3, '0'));
         setCampo(novaLinha, "cpf/cnpj", docFormatado);
         setCampo(novaLinha, "inadimplencia dias", 0);
-        setCampo(novaLinha, "tempo associado (anos)", 3);
-        for (var nomeCol2 in campos) setCampo(novaLinha, nomeCol2, campos[nomeCol2]);
-        shAssociados.appendRow(novaLinha);
+        for (nomeCol in campos) setCampo(novaLinha, nomeCol, campos[nomeCol]);
+        dadosExistem.push(novaLinha);
+        cpfsExistentes[docFormatado] = dadosExistem.length - 1;
+        contadorId++;
       }
     }
-    
+
+    // GRAVAÇÃO ÚNICA de toda a matriz (rápido mesmo com milhares de linhas)
+    if (dadosExistem.length > 0) {
+      // Garante que a grade da aba comporte todas as linhas (evita erro em bases grandes)
+      var maxRows = shAssociados.getMaxRows();
+      if (dadosExistem.length > maxRows) {
+        shAssociados.insertRowsAfter(maxRows, dadosExistem.length - maxRows);
+      }
+      shAssociados.getRange(1, 1, dadosExistem.length, totalCols).setValues(dadosExistem);
+    }
+
     registrarUpload(nomeArquivo, tipoLista, registrosProcessados, "Validado", "");
     return { success: true, registros: registrosProcessados };
   } catch (err) {
@@ -488,29 +488,35 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
 
 // Identifica o colaborador logado (via conta Google) e sua agência na aba Colaboradores
 function obterUsuarioAtual() {
-  var resultado = { email: "", agencia: "", isSede: false, cadastrado: false };
+  var resultado = {
+    email: "", agencia: "", isSede: false, cadastrado: false,
+    semIdentificacao: false, semColaboradores: false
+  };
   try {
     resultado.email = Session.getActiveUser().getEmail() || "";
   } catch (e) {
     resultado.email = "";
   }
   var emailNorm = String(resultado.email).trim().toLowerCase();
-  if (!emailNorm) return resultado; // e-mail indisponível nesta implantação
+  resultado.semIdentificacao = (emailNorm === "");
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName("Colaboradores");
-  if (!sh) return resultado;
+  if (!sh) { resultado.semColaboradores = true; return resultado; }
 
   var dados = sh.getDataRange().getValues();
+  var registros = 0;
   for (var i = 1; i < dados.length; i++) {
-    var e = String(dados[i][0] || "").trim().toLowerCase();
-    if (e && e === emailNorm) {
+    var em = String(dados[i][0] || "").trim();
+    if (em !== "") registros++;
+    if (emailNorm && em.toLowerCase() === emailNorm) {
       resultado.agencia = String(dados[i][2] || "").trim();
       resultado.cadastrado = true;
-      resultado.isSede = normalizarCol(resultado.agencia).indexOf("sede") !== -1;
-      break;
+      // SEDE é comparação EXATA (nomes de agência podem conter a palavra "Sede")
+      resultado.isSede = normalizarCol(resultado.agencia) === "sede";
     }
   }
+  resultado.semColaboradores = (registros === 0);
   return resultado;
 }
 
@@ -569,14 +575,43 @@ function normalizarCol(texto) {
     .toLowerCase();
 }
 
+// Converte texto monetário/numérico para número, tolerando formato brasileiro
+// ("1.234,56") e americano ("1,234.56"), com ou sem "R$", "%" e espaços.
+// Regra: o separador mais à direita é o decimal.
+// Extrai o código da agência (parte antes de " - ") normalizado, para comparação.
+// Ex.: "20321 - Pac Sede Nova" -> "20321"; "0632" -> "0632"; "SEDE" -> "sede"
+function codigoAgencia(valor) {
+  var s = String(valor || "").trim();
+  var pos = s.indexOf(" - ");
+  if (pos !== -1) s = s.substring(0, pos);
+  return normalizarCol(s);
+}
+
 function parseDinheiro(valorTexto) {
-  if (!valorTexto) return 0;
-  var limpo = String(valorTexto)
-    .replace("R$", "")
-    .replace(/\s/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
-  return Number(limpo) || 0;
+  if (valorTexto === null || valorTexto === undefined) return 0;
+  var s = String(valorTexto).replace(/[^0-9.,\-]/g, ""); // remove R$, %, espaços, etc.
+  if (s === "" || s === "-" || s === "." || s === ",") return 0;
+
+  var temVirgula = s.indexOf(",") !== -1;
+  var temPonto = s.indexOf(".") !== -1;
+
+  if (temVirgula && temPonto) {
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
+      s = s.replace(/\./g, "").replace(/,/g, "."); // BR: 1.234,56
+    } else {
+      s = s.replace(/,/g, "");                     // US: 1,234.56
+    }
+  } else if (temVirgula) {
+    // só vírgula: várias => milhares; uma => decimal
+    if (s.indexOf(",") !== s.lastIndexOf(",")) s = s.replace(/,/g, "");
+    else s = s.replace(",", ".");
+  } else if (temPonto) {
+    // só ponto: vários => milhares (BR); um único => decimal (US/Excel)
+    if (s.indexOf(".") !== s.lastIndexOf(".")) s = s.replace(/\./g, "");
+  }
+
+  var n = Number(s);
+  return isNaN(n) ? 0 : n;
 }
 
 // Helpers para Formatação de Data/Hora brasileira
