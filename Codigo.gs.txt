@@ -137,6 +137,9 @@ function obterDadosCompletos() {
       });
     }
 
+    var totalLinhasAssociados = dadosAssociados.length;   // inclui cabeçalho
+    var associadosAntesFiltro = associados.length;
+
     // Regras de acesso (fail-safe para não esconder tudo durante a configuração):
     // - vê TUDO se: for SEDE, OU não há colaboradores cadastrados (setup),
     //   OU o e-mail não pôde ser identificado nesta implantação
@@ -213,10 +216,16 @@ function obterDadosCompletos() {
         limiteContaTotal: limiteContaTotal,
         totalNovoLimite: totalNovoLimite,
         totalAssociados: associados.length
+      },
+      debug: {
+        linhasNaAba: totalLinhasAssociados,          // linhas na aba Associados (com cabeçalho)
+        associadosAntesFiltro: associadosAntesFiltro, // quantos foram lidos antes do filtro
+        associadosAposFiltro: associados.length,      // quantos sobraram após o filtro
+        colunasDetectadas: Object.keys(mapaA).join(", ")
       }
     };
   } catch (err) {
-    return { error: err.toString() };
+    return { error: err.toString() + (err.stack ? (" | " + err.stack) : "") };
   }
 }
 

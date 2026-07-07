@@ -436,27 +436,40 @@
       if (isGoogleAppsScript) {
         google.script.run
           .withSuccessHandler(function(response) {
-            if (response && response.error) {
-              console.error("Erro no Apps Script:", response.error);
-              alert("Erro na planilha do Google Sheets: " + response.error + "\n\nUsando banco de dados simulado para demonstração.");
-              simulateLocalDatabase();
-            } else {
+            try {
+              if (response && response.error) {
+                mostrarErroBackend(response.error);
+                return;
+              }
               appData = response || appData;
               renderAll();
               document.getElementById('loading').classList.add('hidden');
               document.getElementById('content').classList.remove('hidden');
+            } catch (e) {
+              mostrarErroBackend('Erro ao renderizar a tela: ' + (e && e.message ? e.message : e));
             }
           })
           .withFailureHandler(function(err) {
-            console.error("Falha na chamada do Apps Script:", err);
-            alert("Falha de conexão com o Google Sheets: " + err + "\n\nAtivando banco de dados simulado.");
-            simulateLocalDatabase();
+            mostrarErroBackend('Falha de comunicação com o servidor: ' + err);
           })
           .obterDadosCompletos();
       } else {
         console.log("Ambiente local/preview detectado. Ativando simulador local.");
         simulateLocalDatabase();
       }
+    }
+
+    // Exibe o erro real na tela (em vez de esconder), para facilitar o diagnóstico
+    function mostrarErroBackend(msg) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('content').classList.remove('hidden');
+      const banner = document.getElementById('access-banner');
+      const bannerText = document.getElementById('access-banner-text');
+      if (banner && bannerText) {
+        bannerText.innerHTML = '<strong>Não foi possível carregar os dados.</strong><br>' + String(msg);
+        banner.classList.remove('hidden');
+      }
+      console.error('Erro backend:', msg);
     }
 
     function simulateLocalDatabase() {
@@ -527,7 +540,7 @@
 
       const protoTbody = document.getElementById('protocol-table-body');
       protoTbody.innerHTML = '';
-      appData.protocolos.forEach(p => {
+      (appData.protocolos || []).forEach(p => {
         const tr = document.createElement('tr');
         tr.className = "hover:bg-gray-50 transition";
         tr.innerHTML = 
@@ -542,7 +555,7 @@
 
       const uploadTbody = document.getElementById('uploads-table-body');
       uploadTbody.innerHTML = '';
-      appData.uploads.forEach(u => {
+      (appData.uploads || []).forEach(u => {
         const tr = document.createElement('tr');
         tr.className = "hover:bg-gray-50 transition";
         tr.innerHTML = 
@@ -593,7 +606,13 @@
       });
 
       if (lista.length === 0) {
-        assocTbody.innerHTML = "<tr><td colspan='4' class='p-6 text-center text-xs text-gray-400'>Nenhum associado para os filtros atuais.</td></tr>";
+        let diag = "Nenhum associado para exibir.";
+        const d = appData.debug;
+        if (d) {
+          diag += "<br><span class='text-[10px] text-gray-400'>Diagnóstico — linhas na aba: " + d.linhasNaAba +
+                  " · lidos: " + d.associadosAntesFiltro + " · após filtro: " + d.associadosAposFiltro + "</span>";
+        }
+        assocTbody.innerHTML = "<tr><td colspan='4' class='p-6 text-center text-xs text-gray-400'>" + diag + "</td></tr>";
       }
 
       // Mantém o detalhamento aberto apenas se o selecionado ainda está na lista filtrada
