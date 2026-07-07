@@ -27,7 +27,7 @@ var LIMITE_MINIMO = 500;
 // Colunas canônicas da aba Associados (a leitura/gravação é orientada por nome,
 // então novas colunas podem ser adicionadas sem quebrar índices)
 var COLUNAS_ASSOCIADOS = [
-  "ID", "Nome", "CPF/CNPJ", "Conta", "Limite Atual", "Sugestão Motor", "Status",
+  "ID", "Nome", "CPF/CNPJ", "Conta", "Produto", "Operação", "Limite Atual", "Sugestão Motor", "Status",
   "Renda Comprovada", "Comprometimento SCR", "Score", "Inadimplência Dias",
   "Tempo Associado (Anos)", "Justificativa", "Novo Limite Confirmado", "Agência",
   "Micro Segmento", "Ativo Comercial", "IRC", "Capital Social", "DT Base SCR",
@@ -116,6 +116,8 @@ function obterDadosCompletos() {
         nome: g("nome"),
         cpfCnpj: g("cpf/cnpj"),
         conta: g("conta"),
+        produto: String(g("produto") || "").trim() || "Conta",
+        operacao: String(g("operacao") || "").trim(),
         limiteAtual: Number(g("limite atual")) || 0,
         sugestaoMotor: Number(g("sugestao motor")) || 0,
         status: g("status") || "AGUARDANDO",
@@ -201,11 +203,13 @@ function obterDadosCompletos() {
       }
     });
 
-    // Limite de conta = soma dos limites atuais; novo limite = soma dos confirmados
+    // Totais separados por produto (Conta x Cartão) + soma dos limites confirmados
     var limiteContaTotal = 0;
+    var limiteCartaoTotal = 0;
     var totalNovoLimite = 0;
     associados.forEach(function(a) {
-      limiteContaTotal += a.limiteAtual;
+      if (normalizarCol(a.produto) === "cartao") limiteCartaoTotal += a.limiteAtual;
+      else limiteContaTotal += a.limiteAtual;
       if (a.novoLimiteConfirmado) totalNovoLimite += a.novoLimiteConfirmado;
     });
 
@@ -220,6 +224,7 @@ function obterDadosCompletos() {
       estatisticas: {
         totalPendente: totalPendente,
         limiteContaTotal: limiteContaTotal,
+        limiteCartaoTotal: limiteCartaoTotal,
         totalNovoLimite: totalNovoLimite,
         totalAssociados: associados.length
       },
@@ -405,18 +410,28 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
                (cLimpo.indexOf("cheque") !== -1 || cLimpo.indexOf("cartao") !== -1)) idx.saldoDevedor = i;
     });
 
+    // Produto e Operação derivados do tipo de lista escolhido no upload
+    var tipoNorm = normalizarCol(tipoLista);
+    var produto = (tipoNorm.indexOf("cartao") !== -1) ? "Cartão" : "Conta";
+    var operacao = (tipoNorm.indexOf("majoracao") !== -1) ? "Majoração" : "Implantação";
+    var produtoNorm = normalizarCol(produto);
+
     // Garante todas as colunas na aba Associados e obtém o mapa (0-based)
     var mapaA = garantirColunasAssociados();
     var shAssociados = ss.getSheetByName("Associados");
     var totalCols = shAssociados.getLastColumn();
     var dadosExistem = shAssociados.getDataRange().getValues();
     var colDoc = mapaA["cpf/cnpj"];
+    var colProduto = mapaA["produto"];
 
-    // Índice CPF -> posição (0-based) na matriz em memória
+    // Índice (CPF + Produto) -> posição na matriz. Assim Conta e Cartão coexistem.
+    // Linhas legadas (sem produto) são indexadas com produto vazio para adoção.
     var cpfsExistentes = {};
     for (var i = 1; i < dadosExistem.length; i++) {
       var cpf = String(dadosExistem[i][colDoc]).trim();
-      if (cpf) cpfsExistentes[cpf] = i;
+      if (!cpf) continue;
+      var prodLinha = (colProduto !== undefined) ? normalizarCol(dadosExistem[i][colProduto]) : "";
+      cpfsExistentes[cpf + "|" + prodLinha] = i;
     }
 
     var setCampo = function(arr, nomeCol, valor) {
@@ -464,6 +479,8 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
         "limite scr": parseDinheiro(pega(idx.limiteScr)),
         "saldo devedor": parseDinheiro(pega(idx.saldoDevedor))
       };
+      campos["produto"] = produto;
+      campos["operacao"] = operacao;
       var agencia = (idx.agencia !== -1) ? String(pega(idx.agencia)).trim() : "";
       if (agencia) campos["agencia"] = agencia;
 
@@ -471,10 +488,18 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
       var docFormatado = String(doc).trim();
       var nomeCol;
 
-      if (cpfsExistentes[docFormatado] !== undefined) {
+      // Procura a linha do mesmo CPF + Produto; se não achar, tenta adotar uma
+      // linha legada sem produto (apenas para Conta, que era o padrão anterior).
+      var pos = cpfsExistentes[docFormatado + "|" + produtoNorm];
+      if (pos === undefined && produtoNorm === "conta") {
+        pos = cpfsExistentes[docFormatado + "|"];
+      }
+
+      if (pos !== undefined) {
         // Atualiza a linha existente em memória (preserva colunas não vindas do arquivo)
-        var linhaArr = dadosExistem[cpfsExistentes[docFormatado]];
+        var linhaArr = dadosExistem[pos];
         for (nomeCol in campos) setCampo(linhaArr, nomeCol, campos[nomeCol]);
+        cpfsExistentes[docFormatado + "|" + produtoNorm] = pos; // reindexa já com produto
       } else {
         // Novo associado (acrescenta à matriz em memória)
         var novaLinha = [];
@@ -484,7 +509,7 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
         setCampo(novaLinha, "inadimplencia dias", 0);
         for (nomeCol in campos) setCampo(novaLinha, nomeCol, campos[nomeCol]);
         dadosExistem.push(novaLinha);
-        cpfsExistentes[docFormatado] = dadosExistem.length - 1;
+        cpfsExistentes[docFormatado + "|" + produtoNorm] = dadosExistem.length - 1;
         contadorId++;
       }
     }
