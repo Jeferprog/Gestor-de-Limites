@@ -462,7 +462,7 @@
     function simulateLocalDatabase() {
       // Ambiente de preview (fora do Google Sheets): base vazia, sem dados fictícios.
       appData = {
-        usuario: { email: '', agencia: '', isSede: true, cadastrado: true },
+        usuario: { email: 'preview@local', agencia: 'SEDE', isSede: true, cadastrado: true, semColaboradores: false, semIdentificacao: false },
         estatisticas: { totalPendente: 0, limiteContaTotal: 0, totalNovoLimite: 0, totalAssociados: 0 },
         protocolos: [],
         uploads: [],
@@ -489,10 +489,20 @@
         return;
       }
 
-      if (!u.email) {
-        agenciaEl.innerText = 'Usuário não identificado';
-        escopoEl.innerText = 'Acesso restrito';
-        bannerText.innerHTML = 'Não foi possível identificar seu e-mail corporativo. Confirme se a implantação do Web App restringe o acesso ao domínio. Nenhum associado é exibido até a identificação.';
+      // Setup: nenhum colaborador cadastrado ainda -> mostra tudo, com aviso
+      if (u.semColaboradores) {
+        agenciaEl.innerText = 'Acesso total';
+        escopoEl.innerText = u.email || 'Não configurado';
+        bannerText.innerHTML = 'Controle de acesso ainda não configurado: <strong>todos os associados estão visíveis</strong>. Cadastre os colaboradores na aba <strong>Colaboradores</strong> (Email · Nome · Agência) para restringir por agência. Use <strong>SEDE</strong> na agência para acesso total.';
+        banner.classList.remove('hidden');
+        return;
+      }
+
+      // E-mail não identificado nesta implantação -> mostra tudo, com aviso
+      if (u.semIdentificacao || !u.email) {
+        agenciaEl.innerText = 'Acesso total';
+        escopoEl.innerText = 'Sem identificação';
+        bannerText.innerHTML = 'Não foi possível identificar seu e-mail corporativo, então <strong>todos os associados estão visíveis</strong>. Para restringir por agência, implante o Web App com acesso limitado ao domínio (Executar como: Eu · Acesso: usuários do domínio).';
         banner.classList.remove('hidden');
         return;
       }

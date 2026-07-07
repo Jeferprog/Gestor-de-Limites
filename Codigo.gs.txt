@@ -137,11 +137,13 @@ function obterDadosCompletos() {
       });
     }
 
-    // Aplica o filtro por agência:
-    // - SEDE: vê todos os associados
-    // - agência específica: vê apenas os da sua agência
-    // - não cadastrado: não vê nenhum associado
-    if (!usuario.isSede) {
+    // Regras de acesso (fail-safe para não esconder tudo durante a configuração):
+    // - vê TUDO se: for SEDE, OU não há colaboradores cadastrados (setup),
+    //   OU o e-mail não pôde ser identificado nesta implantação
+    // - vê apenas a sua agência se cadastrado com agência específica
+    // - vê NADA apenas se está identificado E há colaboradores, mas ele não consta
+    var verTudo = usuario.isSede || usuario.semColaboradores || usuario.semIdentificacao;
+    if (!verTudo) {
       if (usuario.cadastrado) {
         var codUsuario = codigoAgencia(usuario.agencia);
         associados = associados.filter(function(a) {
@@ -486,30 +488,35 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
 
 // Identifica o colaborador logado (via conta Google) e sua agência na aba Colaboradores
 function obterUsuarioAtual() {
-  var resultado = { email: "", agencia: "", isSede: false, cadastrado: false };
+  var resultado = {
+    email: "", agencia: "", isSede: false, cadastrado: false,
+    semIdentificacao: false, semColaboradores: false
+  };
   try {
     resultado.email = Session.getActiveUser().getEmail() || "";
   } catch (e) {
     resultado.email = "";
   }
   var emailNorm = String(resultado.email).trim().toLowerCase();
-  if (!emailNorm) return resultado; // e-mail indisponível nesta implantação
+  resultado.semIdentificacao = (emailNorm === "");
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName("Colaboradores");
-  if (!sh) return resultado;
+  if (!sh) { resultado.semColaboradores = true; return resultado; }
 
   var dados = sh.getDataRange().getValues();
+  var registros = 0;
   for (var i = 1; i < dados.length; i++) {
-    var e = String(dados[i][0] || "").trim().toLowerCase();
-    if (e && e === emailNorm) {
+    var em = String(dados[i][0] || "").trim();
+    if (em !== "") registros++;
+    if (emailNorm && em.toLowerCase() === emailNorm) {
       resultado.agencia = String(dados[i][2] || "").trim();
       resultado.cadastrado = true;
       // SEDE é comparação EXATA (nomes de agência podem conter a palavra "Sede")
       resultado.isSede = normalizarCol(resultado.agencia) === "sede";
-      break;
     }
   }
+  resultado.semColaboradores = (registros === 0);
   return resultado;
 }
 
