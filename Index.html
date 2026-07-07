@@ -150,23 +150,29 @@
 
             <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-green-600 flex flex-col justify-between h-32">
               <div>
-                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Novos Limites Confirmados</span>
-                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-novo-limite">R$ 0,00</h3>
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Novos Limites — Conta</span>
+                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-novo-conta">R$ 0,00</h3>
               </div>
               <div class="flex items-center text-green-700 font-bold text-xs gap-1">
-                <span class="material-symbols-outlined text-sm">task_alt</span> <span id="kpi-aprovados-count">0</span> aprovados
+                <span class="material-symbols-outlined text-sm">task_alt</span> <span id="kpi-aprov-conta-count">0</span> aprovados
               </div>
             </div>
 
-            <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-secondary flex flex-col justify-between h-32">
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-purple-600 flex flex-col justify-between h-32">
               <div>
-                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Aguardando Análise</span>
-                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-aguardando-count">0</h3>
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Novos Limites — Cartão</span>
+                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-novo-cartao">R$ 0,00</h3>
               </div>
-              <div class="flex items-center text-secondary font-bold text-xs gap-1">
-                <span class="material-symbols-outlined text-sm">pending_actions</span> associados na fila
+              <div class="flex items-center text-purple-700 font-bold text-xs gap-1">
+                <span class="material-symbols-outlined text-sm">task_alt</span> <span id="kpi-aprov-cartao-count">0</span> aprovados
               </div>
             </div>
+          </div>
+
+          <!-- Resumo de aguardando análise (contadores rápidos) -->
+          <div class="flex flex-wrap gap-4 text-xs text-gray-500">
+            <span class="inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm text-amber-500">pending_actions</span> <strong id="kpi-aguardando-count" class="text-gray-800">0</strong> aguardando análise</span>
+            <span class="inline-flex items-center gap-1"><span class="material-symbols-outlined text-sm text-primary">groups</span> <strong id="kpi-associados-count" class="text-gray-800">0</strong> associados na base</span>
           </div>
 
           <!-- Distribuição por status + Últimos uploads -->
@@ -750,20 +756,36 @@
       return "<span class='px-2 py-0.5 rounded text-[10px] font-bold " + cls + "'>" + (status || '—') + "</span>";
     }
 
-    // KPIs e resumo (distribuição por status + últimas importações)
+    function ehCartao(a) { return String(a.produto || 'Conta').toLowerCase().indexOf('cart') !== -1; }
+
+    // KPIs e resumo — todos calculados AO VIVO a partir dos associados,
+    // para refletirem imediatamente as confirmações (atualização otimista).
     function renderKpisEResumo() {
-      const est = appData.estatisticas || {};
       const assoc = appData.associados || [];
 
-      document.getElementById('kpi-limite-conta').innerText = formatCurrency(est.limiteContaTotal || 0);
-      document.getElementById('kpi-limite-cartao').innerText = formatCurrency(est.limiteCartaoTotal || 0);
-      document.getElementById('kpi-novo-limite').innerText = formatCurrency(est.totalNovoLimite || 0);
+      let limConta = 0, limCartao = 0;
+      let novoConta = 0, novoCartao = 0, aprovConta = 0, aprovCartao = 0;
+      let aguardando = 0;
 
-      const aprovados = assoc.filter(a => String(a.status).toUpperCase() === 'APROVADO').length;
-      const aguardando = assoc.filter(a => String(a.status).toUpperCase() === 'AGUARDANDO').length;
+      assoc.forEach(a => {
+        const cart = ehCartao(a);
+        if (cart) limCartao += (a.limiteAtual || 0); else limConta += (a.limiteAtual || 0);
 
-      document.getElementById('kpi-aprovados-count').innerText = aprovados;
+        const nv = Number(a.novoLimiteConfirmado) || 0;
+        if (nv > 0) {
+          if (cart) { novoCartao += nv; aprovCartao++; } else { novoConta += nv; aprovConta++; }
+        }
+        if (String(a.status).toUpperCase() === 'AGUARDANDO') aguardando++;
+      });
+
+      document.getElementById('kpi-limite-conta').innerText = formatCurrency(limConta);
+      document.getElementById('kpi-limite-cartao').innerText = formatCurrency(limCartao);
+      document.getElementById('kpi-novo-conta').innerText = formatCurrency(novoConta);
+      document.getElementById('kpi-novo-cartao').innerText = formatCurrency(novoCartao);
+      document.getElementById('kpi-aprov-conta-count').innerText = aprovConta;
+      document.getElementById('kpi-aprov-cartao-count').innerText = aprovCartao;
       document.getElementById('kpi-aguardando-count').innerText = aguardando;
+      document.getElementById('kpi-associados-count').innerText = assoc.length;
 
       // Distribuição por status
       const cont = {};
