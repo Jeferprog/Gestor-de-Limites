@@ -310,7 +310,15 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     inicializarPlanilha();
-    
+
+    // Importar listas é restrito à SEDE (defesa no servidor, além da interface).
+    // Liberado também durante a configuração (sem colaboradores) ou quando o
+    // e-mail não pôde ser identificado (mesmo fail-safe do restante do sistema).
+    var usuarioImport = obterUsuarioAtual();
+    if (!(usuarioImport.isSede || usuarioImport.semColaboradores || usuarioImport.semIdentificacao)) {
+      return { success: false, error: "Apenas colaboradores da SEDE podem importar listas." };
+    }
+
     // Remove BOM (comum em arquivos exportados em UTF-8) antes de qualquer parsing
     conteudoTexto = String(conteudoTexto).replace(/^﻿/, '');
 

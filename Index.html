@@ -415,6 +415,7 @@
     let filtroCarteira = '';
     let filtroProduto = '';
     let filtroOperacao = '';
+    let podeImportar = true; // SEDE (ou modos fail-safe) podem importar listas
 
     window.onload = function() {
       setTab('visao-geral');
@@ -422,12 +423,17 @@
     };
 
     function setTab(tabId) {
+      // Upload de Listas é restrito à SEDE
+      if (tabId === 'upload-listas' && !podeImportar) {
+        tabId = 'visao-geral';
+      }
+
       document.getElementById('tab-visao-geral').classList.add('hidden');
       document.getElementById('tab-upload-listas').classList.add('hidden');
       document.getElementById('tab-gestao-limites').classList.add('hidden');
-      
+
       document.getElementById('tab-' + tabId).classList.remove('hidden');
-      
+
       const titles = {
         'visao-geral': 'Visão Geral da Agência',
         'upload-listas': 'Upload de Listas Central',
@@ -504,6 +510,15 @@
       const escopoEl = document.getElementById('user-escopo');
       const banner = document.getElementById('access-banner');
       const bannerText = document.getElementById('access-banner-text');
+
+      // Upload de Listas é restrito à SEDE (libera também nos modos fail-safe)
+      podeImportar = !u || u.isSede || u.semColaboradores || u.semIdentificacao;
+      const btnUpload = document.getElementById('btn-upload-listas');
+      if (btnUpload) btnUpload.classList.toggle('hidden', !podeImportar);
+      // Se estava na aba de upload sem permissão, volta para a Visão Geral
+      if (!podeImportar && !document.getElementById('tab-upload-listas').classList.contains('hidden')) {
+        setTab('visao-geral');
+      }
 
       banner.classList.add('hidden');
 
