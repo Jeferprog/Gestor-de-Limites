@@ -196,7 +196,7 @@
           </div>
 
           <!-- Protocol Table -->
-          <div class="bg-white rounded-lg border border-outline-variant shadow-sm overflow-hidden">
+          <div id="card-protocolos" class="bg-white rounded-lg border border-outline-variant shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-outline-variant bg-gray-50">
               <h4 class="font-bold text-primary">Protocolos Recentes</h4>
             </div>
@@ -545,6 +545,10 @@
         cardDist.classList.toggle('lg:col-span-12', !podeImportar);
       }
 
+      // Protocolos Recentes: some para agência
+      const cardProto = document.getElementById('card-protocolos');
+      if (cardProto) cardProto.classList.toggle('hidden', !podeImportar);
+
       // Se estava na aba de upload sem permissão, volta para a Visão Geral
       if (!podeImportar && !document.getElementById('tab-upload-listas').classList.contains('hidden')) {
         setTab('visao-geral');
@@ -658,7 +662,7 @@
         const linhas = lista.map(function(a) {
           const isSelected = selectedAssociateId === a.id;
           const carteira = a.microSegmento ? "<span class='text-[10px] text-secondary'>" + a.microSegmento + "</span>" : "";
-          const tags = "<div class='flex items-center gap-1 mt-0.5'>" + produtoBadge(a.produto) + operacaoBadge(a.operacao) + "</div>";
+          const tags = "<div class='flex items-center justify-end gap-1 mb-1'>" + produtoBadge(a.produto) + operacaoBadge(a.operacao) + "</div>";
           const st = String(a.status || '').toUpperCase();
           const aprovado = a.novoLimiteConfirmado !== null && a.novoLimiteConfirmado !== undefined && a.novoLimiteConfirmado !== '';
           let sugestaoCell;
@@ -680,8 +684,8 @@
           }
           return "<tr onclick=\"selectAssociate('" + a.id + "')\" class='cursor-pointer transition " +
               (isSelected ? "bg-orange-50 border-l-4 border-secondary" : "hover:bg-gray-50") + "'>" +
-            "<td class='p-3'><div class='flex flex-col'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + "</span>" + carteira + tags + "</div></td>" +
-            "<td class='p-3 text-right'>" + formatCurrency(a.limiteAtual) + "</td>" +
+            "<td class='p-3'><div class='flex flex-col'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + "</span>" + carteira + "</div></td>" +
+            "<td class='p-3 text-right'>" + tags + "<div class='font-semibold'>" + formatCurrency(a.limiteAtual) + "</div></td>" +
             "<td class='p-3 text-right'>" + sugestaoCell + "</td>" +
             "<td class='p-3 text-center'>" + statusBadge(a.status) + "</td>" +
           "</tr>";
@@ -731,20 +735,20 @@
       renderListaAssociados();
     }
 
-    // Badges de Produto e Operação
+    // Badges de Produto e Operação (destaque um pouco maior)
     function produtoBadge(produto) {
       const p = produto || 'Conta';
       const cartao = String(p).toLowerCase().indexOf('cart') !== -1;
-      const cls = cartao ? 'bg-purple-100 text-purple-700' : 'bg-teal-100 text-teal-700';
+      const cls = cartao ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-teal-100 text-teal-700 border border-teal-200';
       const icone = cartao ? 'credit_card' : 'account_balance_wallet';
-      return "<span class='inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold " + cls + "'>" +
-             "<span class='material-symbols-outlined' style='font-size:11px'>" + icone + "</span>" + p + "</span>";
+      return "<span class='inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold " + cls + "'>" +
+             "<span class='material-symbols-outlined' style='font-size:14px'>" + icone + "</span>" + p + "</span>";
     }
     function operacaoBadge(operacao) {
       if (!operacao) return "";
       const maj = String(operacao).toLowerCase().indexOf('major') !== -1;
-      const cls = maj ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600';
-      return "<span class='px-1.5 py-0.5 rounded text-[9px] font-bold " + cls + "'>" + operacao + "</span>";
+      const cls = maj ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-gray-100 text-gray-600 border border-gray-200';
+      return "<span class='px-2 py-0.5 rounded-md text-[11px] font-bold " + cls + "'>" + operacao + "</span>";
     }
 
     function selectAssociate(id) {
