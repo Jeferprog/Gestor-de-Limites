@@ -278,9 +278,40 @@ function confirmarNovoLimite(id, novoLimite, justificativa) {
   }
 }
 
-// Cria um Novo Protocolo
+// Marca o associado como "MANTIDO" (decisão de NÃO alterar o limite).
+// Tira-o da fila de análise sem registrar um novo limite.
+function manterLimite(id, justificativa) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Associados");
+    var m = mapaColunas(sheet);
+    var colId = m["id"], colStatus = m["status"], colJust = m["justificativa"];
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { success: false, error: "Base vazia" };
+
+    var ids = sheet.getRange(2, colId + 1, lastRow - 1, 1).getValues();
+    var linha = -1;
+    for (var i = 0; i < ids.length; i++) {
+      if (ids[i][0] === id) { linha = i + 2; break; }
+    }
+    if (linha === -1) return { success: false, error: "Associado não encontrado" };
+
+    sheet.getRange(linha, colStatus + 1).setValue("MANTIDO");
+    sheet.getRange(linha, colJust + 1).setValue(justificativa || "Limite mantido (sem alteração)");
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// Cria um Novo Protocolo (restrito à SEDE, como o upload)
 function registrarNovoProtocolo(associado, tipo, valorSolicitado) {
   try {
+    var u = obterUsuarioAtual();
+    if (!(u.isSede || u.semColaboradores || u.semIdentificacao)) {
+      return { success: false, error: "Apenas colaboradores da SEDE podem criar protocolos." };
+    }
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Protocolos");
     var novoId = "#2024-" + String(sheet.getLastRow()).padStart(3, '0');

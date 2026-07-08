@@ -73,7 +73,7 @@
       </nav>
 
       <div class="mt-auto border-t border-outline-variant pt-4 space-y-1">
-        <button onclick="openNewProtocolModal()" class="w-full bg-secondary text-white font-bold py-3 rounded-lg hover:brightness-95 transition-all flex items-center justify-center gap-2 mb-4">
+        <button id="btn-novo-protocolo" onclick="openNewProtocolModal()" class="w-full bg-secondary text-white font-bold py-3 rounded-lg hover:brightness-95 transition-all flex items-center justify-center gap-2 mb-4">
           <span class="material-symbols-outlined">add_circle</span>
           Novo Protocolo
         </button>
@@ -177,7 +177,7 @@
 
           <!-- Distribuição por status + Últimos uploads -->
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div class="lg:col-span-8 bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col">
+            <div id="card-distribuicao" class="lg:col-span-8 bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col">
               <div class="p-6 border-b border-outline-variant flex justify-between items-center bg-gray-50">
                 <h4 class="font-bold text-primary">Distribuição por Status</h4>
                 <span class="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full font-bold">Associados</span>
@@ -187,7 +187,7 @@
               </div>
             </div>
 
-            <div class="lg:col-span-4 bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col p-6 space-y-4">
+            <div id="card-ultimas-importacoes" class="lg:col-span-4 bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col p-6 space-y-4">
               <h4 class="font-bold text-primary border-b pb-2">Últimas Importações</h4>
               <div class="space-y-4" id="updates-list">
                 <p class="text-xs text-gray-400">Nenhuma importação registrada.</p>
@@ -389,6 +389,9 @@
                     <button onclick="submitNewLimit()" class="w-full py-2 bg-secondary text-white font-bold text-xs rounded hover:brightness-105">
                       Confirmar Novo Limite
                     </button>
+                    <button onclick="submitManterLimite()" class="w-full py-2 bg-white/15 text-white font-bold text-xs rounded hover:bg-white/25 flex items-center justify-center gap-1">
+                      <span class="material-symbols-outlined text-sm">do_not_disturb_on</span> Manter (não alterar)
+                    </button>
                   </div>
                 </div>
               </div>
@@ -525,10 +528,23 @@
       const banner = document.getElementById('access-banner');
       const bannerText = document.getElementById('access-banner-text');
 
-      // Upload de Listas é restrito à SEDE (libera também nos modos fail-safe)
+      // Recursos restritos à SEDE (libera também nos modos fail-safe): Upload de
+      // Listas, botão Novo Protocolo e o histórico de importações.
       podeImportar = !u || u.isSede || u.semColaboradores || u.semIdentificacao;
       const btnUpload = document.getElementById('btn-upload-listas');
       if (btnUpload) btnUpload.classList.toggle('hidden', !podeImportar);
+      const btnProto = document.getElementById('btn-novo-protocolo');
+      if (btnProto) btnProto.classList.toggle('hidden', !podeImportar);
+
+      // Histórico de importações: some para agência; a distribuição ocupa a largura toda
+      const cardImp = document.getElementById('card-ultimas-importacoes');
+      const cardDist = document.getElementById('card-distribuicao');
+      if (cardImp) cardImp.classList.toggle('hidden', !podeImportar);
+      if (cardDist) {
+        cardDist.classList.toggle('lg:col-span-8', podeImportar);
+        cardDist.classList.toggle('lg:col-span-12', !podeImportar);
+      }
+
       // Se estava na aba de upload sem permissão, volta para a Visão Geral
       if (!podeImportar && !document.getElementById('tab-upload-listas').classList.contains('hidden')) {
         setTab('visao-geral');
@@ -643,17 +659,23 @@
           const isSelected = selectedAssociateId === a.id;
           const carteira = a.microSegmento ? "<span class='text-[10px] text-secondary'>" + a.microSegmento + "</span>" : "";
           const tags = "<div class='flex items-center gap-1 mt-0.5'>" + produtoBadge(a.produto) + operacaoBadge(a.operacao) + "</div>";
+          const st = String(a.status || '').toUpperCase();
           const aprovado = a.novoLimiteConfirmado !== null && a.novoLimiteConfirmado !== undefined && a.novoLimiteConfirmado !== '';
           let sugestaoCell;
-          if (aprovado) {
-            sugestaoCell = "<span class='font-bold text-green-700' title='Novo limite confirmado'>" + formatCurrency(a.novoLimiteConfirmado) + "</span>";
+          if (st === 'MANTIDO') {
+            sugestaoCell = "<span class='font-bold text-blue-700' title='Limite mantido (sem alteração)'>Mantido</span>";
+          } else if (aprovado || st === 'APROVADO') {
+            sugestaoCell = "<span class='font-bold text-green-700' title='Novo limite confirmado'>" + formatCurrency(a.novoLimiteConfirmado || a.sugestaoMotor) + "</span>";
           } else {
             sugestaoCell =
-              "<div class='flex items-center justify-end gap-1.5'>" +
-                "<span class='text-secondary'>" + formatCurrency(a.sugestaoMotor) + "</span>" +
-                "<button onclick=\"event.stopPropagation(); confirmarSugestaoLista('" + a.id + "')\" title='Confirmar limite sugerido' " +
+              "<div class='flex items-center justify-end gap-1'>" +
+                "<span class='text-secondary mr-0.5'>" + formatCurrency(a.sugestaoMotor) + "</span>" +
+                "<button onclick=\"event.stopPropagation(); confirmarSugestaoLista('" + a.id + "')\" title='Confirmar o limite sugerido' " +
                   "class='w-6 h-6 flex items-center justify-center rounded bg-green-600 text-white hover:brightness-110'>" +
                   "<span class='material-symbols-outlined text-sm'>check</span></button>" +
+                "<button onclick=\"event.stopPropagation(); manterLimiteLista('" + a.id + "')\" title='Manter — não alterar o limite' " +
+                  "class='w-6 h-6 flex items-center justify-center rounded bg-gray-400 text-white hover:brightness-110'>" +
+                  "<span class='material-symbols-outlined text-sm'>do_not_disturb_on</span></button>" +
               "</div>";
           }
           return "<tr onclick=\"selectAssociate('" + a.id + "')\" class='cursor-pointer transition " +
@@ -780,6 +802,7 @@
       let cls = 'bg-gray-100 text-gray-600';
       if (s === 'APROVADO') cls = 'bg-green-100 text-green-700';
       else if (s === 'AGUARDANDO') cls = 'bg-amber-100 text-amber-700';
+      else if (s === 'MANTIDO') cls = 'bg-blue-100 text-blue-700';
       else if (s === 'CRÍTICO' || s === 'CRITICO') cls = 'bg-red-100 text-red-700';
       else if (s === 'ANÁLISE' || s === 'ANALISE') cls = 'bg-blue-100 text-blue-700';
       return "<span class='px-2 py-0.5 rounded text-[10px] font-bold " + cls + "'>" + (status || '—') + "</span>";
@@ -898,6 +921,46 @@
         })
         .withFailureHandler(function(err) { reverter('Falha de comunicação: ' + err); })
         .confirmarNovoLimite(id, val, justificativa);
+    }
+
+    // "Manter" pela lista: registra a decisão de NÃO alterar o limite
+    function manterLimiteLista(id) {
+      const a = (appData.associados || []).find(x => x.id === id);
+      if (!a) return;
+      if (!confirm('Manter o limite atual de ' + formatCurrency(a.limiteAtual) + ' para ' + a.nome + ' (sem alteração)?')) return;
+      manterLimiteAssoc(id);
+    }
+
+    // "Manter" com atualização OTIMISTA (status MANTIDO, sem novo limite)
+    function manterLimiteAssoc(id) {
+      const a = (appData.associados || []).find(x => x.id === id);
+      if (!a) return;
+
+      const backup = { status: a.status, novoLimiteConfirmado: a.novoLimiteConfirmado, justificativa: a.justificativa };
+      a.status = 'MANTIDO';
+      a.novoLimiteConfirmado = null;
+      a.justificativa = 'Limite mantido (sem alteração)';
+      renderAll();
+
+      const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
+      if (!isGAS) return;
+
+      const reverter = function(msg) {
+        a.status = backup.status;
+        a.novoLimiteConfirmado = backup.novoLimiteConfirmado;
+        a.justificativa = backup.justificativa;
+        renderAll();
+        alert(msg);
+      };
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (!(res && res.success)) {
+            reverter('Não foi possível manter: ' + ((res && res.error) || 'erro desconhecido.'));
+          }
+        })
+        .withFailureHandler(function(err) { reverter('Falha de comunicação: ' + err); })
+        .manterLimite(id, 'Limite mantido (sem alteração)');
     }
 
     let uploadTipoAtual = null;
@@ -1027,6 +1090,11 @@
       const val = parseFloat(document.getElementById('input-confirm-limit').value);
       const justification = document.getElementById('input-confirm-justification').value;
       enviarConfirmacao(selectedAssociateId, val, justification);
+    }
+
+    function submitManterLimite() {
+      if (!selectedAssociateId) return;
+      manterLimiteLista(selectedAssociateId);
     }
 
     function openNewProtocolModal() { document.getElementById('new-protocol-modal').classList.remove('hidden'); }
