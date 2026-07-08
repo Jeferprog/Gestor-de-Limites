@@ -305,9 +305,13 @@ function manterLimite(id, justificativa) {
   }
 }
 
-// Cria um Novo Protocolo
+// Cria um Novo Protocolo (restrito à SEDE, como o upload)
 function registrarNovoProtocolo(associado, tipo, valorSolicitado) {
   try {
+    var u = obterUsuarioAtual();
+    if (!(u.isSede || u.semColaboradores || u.semIdentificacao)) {
+      return { success: false, error: "Apenas colaboradores da SEDE podem criar protocolos." };
+    }
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Protocolos");
     var novoId = "#2024-" + String(sheet.getLastRow()).padStart(3, '0');
