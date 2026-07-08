@@ -196,7 +196,7 @@
           </div>
 
           <!-- Protocol Table -->
-          <div class="bg-white rounded-lg border border-outline-variant shadow-sm overflow-hidden">
+          <div id="card-protocolos" class="bg-white rounded-lg border border-outline-variant shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-outline-variant bg-gray-50">
               <h4 class="font-bold text-primary">Protocolos Recentes</h4>
             </div>
@@ -544,6 +544,10 @@
         cardDist.classList.toggle('lg:col-span-8', podeImportar);
         cardDist.classList.toggle('lg:col-span-12', !podeImportar);
       }
+
+      // Protocolos Recentes: some para agência
+      const cardProto = document.getElementById('card-protocolos');
+      if (cardProto) cardProto.classList.toggle('hidden', !podeImportar);
 
       // Se estava na aba de upload sem permissão, volta para a Visão Geral
       if (!podeImportar && !document.getElementById('tab-upload-listas').classList.contains('hidden')) {
