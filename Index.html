@@ -70,6 +70,10 @@
           <span class="material-symbols-outlined">format_list_bulleted</span>
           <span class="text-sm font-medium">Gestão de Limites</span>
         </button>
+        <button onclick="setTab('relatorios')" id="btn-relatorios" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
+          <span class="material-symbols-outlined">download</span>
+          <span class="text-sm font-medium">Relatórios</span>
+        </button>
       </nav>
 
       <div class="mt-auto border-t border-outline-variant pt-4 space-y-1">
@@ -299,7 +303,7 @@
                   <input id="busca-associado" type="text" oninput="onBuscaInput()" placeholder="Buscar por nome ou CPF/CNPJ..."
                          class="w-full text-xs border-gray-300 rounded py-1.5 pl-8 pr-2 bg-white"/>
                 </div>
-                <div class="grid grid-cols-3 gap-2">
+                <div class="grid grid-cols-2 gap-2">
                   <select id="filtro-produto" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
                     <option value="">Todos os produtos</option>
                     <option value="Conta">Conta (Cheque Esp.)</option>
@@ -309,6 +313,12 @@
                     <option value="">Todas as operações</option>
                     <option value="Majoração">Majoração</option>
                     <option value="Implantação">Implantação</option>
+                  </select>
+                  <select id="filtro-status" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
+                    <option value="">Todos os status</option>
+                    <option value="AGUARDANDO">Aguardando</option>
+                    <option value="APROVADO">Aprovado</option>
+                    <option value="MANTIDO">Mantido</option>
                   </select>
                   <select id="filtro-carteira" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
                     <option value="">Todas as carteiras</option>
@@ -400,6 +410,47 @@
           </div>
         </div>
 
+        <!-- Tab: Relatórios -->
+        <div id="tab-relatorios" class="hidden space-y-6">
+          <div class="mb-2">
+            <h2 class="text-2xl font-black text-primary">Relatórios</h2>
+            <p class="text-gray-500 text-sm">Exporte as decisões de limites em Excel (.xlsx).</p>
+          </div>
+
+          <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm max-w-2xl space-y-5">
+            <div>
+              <h3 class="font-bold text-primary">Relatório de Limites</h3>
+              <p class="text-xs text-gray-500 mt-1">Colunas: Agência · Conta · Limite Atual · Novo Limite Confirmado · Produto · Operação</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="text-[11px] text-gray-500 uppercase font-bold block mb-1">Situação</label>
+                <select id="rel-situacao" onchange="atualizarContagemRelatorio()" class="w-full text-sm border-gray-300 rounded py-2 bg-white">
+                  <option value="aprovado">Aprovados (novo limite) — para o robô</option>
+                  <option value="decididos">Aprovados + Mantidos</option>
+                  <option value="todos">Todos os associados</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-[11px] text-gray-500 uppercase font-bold block mb-1">Produto</label>
+                <select id="rel-produto" onchange="atualizarContagemRelatorio()" class="w-full text-sm border-gray-300 rounded py-2 bg-white">
+                  <option value="">Todos os produtos</option>
+                  <option value="Conta">Conta (Cheque Especial)</option>
+                  <option value="Cartão">Cartão de Crédito</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t">
+              <span class="text-xs text-gray-500" id="rel-contagem">—</span>
+              <button onclick="gerarRelatorioXLS()" class="bg-primary text-white font-bold py-2.5 px-5 rounded-lg hover:brightness-110 flex items-center gap-2">
+                <span class="material-symbols-outlined text-base">download</span> Gerar XLS
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </main>
   </div>
@@ -429,6 +480,7 @@
     let filtroCarteira = '';
     let filtroProduto = '';
     let filtroOperacao = '';
+    let filtroStatus = '';
     let filtroBusca = '';
     let buscaTimer = null;
     const MAX_LISTA = 200; // limite de linhas exibidas por vez (bases grandes)
@@ -440,23 +492,27 @@
     };
 
     function setTab(tabId) {
-      // Upload de Listas é restrito à SEDE
-      if (tabId === 'upload-listas' && !podeImportar) {
+      // Upload de Listas e Relatórios são restritos à SEDE
+      if ((tabId === 'upload-listas' || tabId === 'relatorios') && !podeImportar) {
         tabId = 'visao-geral';
       }
 
       document.getElementById('tab-visao-geral').classList.add('hidden');
       document.getElementById('tab-upload-listas').classList.add('hidden');
       document.getElementById('tab-gestao-limites').classList.add('hidden');
+      document.getElementById('tab-relatorios').classList.add('hidden');
 
       document.getElementById('tab-' + tabId).classList.remove('hidden');
 
       const titles = {
         'visao-geral': 'Visão Geral da Agência',
         'upload-listas': 'Upload de Listas Central',
-        'gestao-limites': 'Gestão de Limites de Crédito'
+        'gestao-limites': 'Gestão de Limites de Crédito',
+        'relatorios': 'Relatórios'
       };
       document.getElementById('current-tab-title').innerText = titles[tabId];
+
+      if (tabId === 'relatorios') atualizarContagemRelatorio();
     }
 
     function loadAllData() {
@@ -535,6 +591,8 @@
       if (btnUpload) btnUpload.classList.toggle('hidden', !podeImportar);
       const btnProto = document.getElementById('btn-novo-protocolo');
       if (btnProto) btnProto.classList.toggle('hidden', !podeImportar);
+      const btnRel = document.getElementById('btn-relatorios');
+      if (btnRel) btnRel.classList.toggle('hidden', !podeImportar);
 
       // Histórico de importações: some para agência; a distribuição ocupa a largura toda
       const cardImp = document.getElementById('card-ultimas-importacoes');
@@ -639,6 +697,7 @@
         (!filtroCarteira || (a.microSegmento || '') === filtroCarteira) &&
         (!filtroProduto || (a.produto || 'Conta') === filtroProduto) &&
         (!filtroOperacao || (a.operacao || '') === filtroOperacao) &&
+        (!filtroStatus || String(a.status || 'AGUARDANDO').toUpperCase() === filtroStatus) &&
         (!busca || String(a.nome || '').toLowerCase().indexOf(busca) !== -1 ||
                    String(a.cpfCnpj || '').toLowerCase().indexOf(busca) !== -1)
       );
@@ -732,6 +791,7 @@
       filtroCarteira = document.getElementById('filtro-carteira').value;
       filtroProduto = document.getElementById('filtro-produto').value;
       filtroOperacao = document.getElementById('filtro-operacao').value;
+      filtroStatus = document.getElementById('filtro-status').value;
       renderListaAssociados();
     }
 
@@ -1099,6 +1159,53 @@
     function submitManterLimite() {
       if (!selectedAssociateId) return;
       manterLimiteLista(selectedAssociateId);
+    }
+
+    // ---- Relatório XLS ----
+    function filtrarParaRelatorio() {
+      const situacao = document.getElementById('rel-situacao').value;
+      const prod = document.getElementById('rel-produto').value;
+      return (appData.associados || []).filter(function(a) {
+        const st = String(a.status || '').toUpperCase();
+        const temNovo = a.novoLimiteConfirmado !== null && a.novoLimiteConfirmado !== undefined &&
+                        a.novoLimiteConfirmado !== '' && Number(a.novoLimiteConfirmado) > 0;
+        let passaSituacao = true;
+        if (situacao === 'aprovado') passaSituacao = (st === 'APROVADO' && temNovo);
+        else if (situacao === 'decididos') passaSituacao = (st === 'APROVADO' || st === 'MANTIDO');
+        const passaProd = !prod || (a.produto || 'Conta') === prod;
+        return passaSituacao && passaProd;
+      });
+    }
+
+    function atualizarContagemRelatorio() {
+      const el = document.getElementById('rel-contagem');
+      if (el) el.innerText = filtrarParaRelatorio().length + ' registro(s) no relatório';
+    }
+
+    function gerarRelatorioXLS() {
+      if (typeof XLSX === 'undefined') { alert('Biblioteca de exportação não carregou. Recarregue a página.'); return; }
+      const registros = filtrarParaRelatorio();
+      if (registros.length === 0) { alert('Nenhum registro para os filtros selecionados.'); return; }
+
+      const cabecalho = ['Agência', 'Conta', 'Limite Atual', 'Novo Limite Confirmado', 'Produto', 'Operação'];
+      const linhas = registros.map(function(a) {
+        const temNovo = a.novoLimiteConfirmado !== null && a.novoLimiteConfirmado !== undefined && a.novoLimiteConfirmado !== '';
+        return [
+          a.agencia || '',
+          a.conta || '',
+          Number(a.limiteAtual) || 0,
+          temNovo ? (Number(a.novoLimiteConfirmado) || 0) : '',
+          a.produto || '',
+          a.operacao || ''
+        ];
+      });
+      const ws = XLSX.utils.aoa_to_sheet([cabecalho].concat(linhas));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Limites');
+      const d = new Date();
+      const nome = 'relatorio_limites_' + d.getFullYear() +
+        ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2) + '.xlsx';
+      XLSX.writeFile(wb, nome);
     }
 
     function openNewProtocolModal() { document.getElementById('new-protocol-modal').classList.remove('hidden'); }
