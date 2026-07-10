@@ -414,7 +414,54 @@
         <div id="tab-relatorios" class="hidden space-y-6">
           <div class="mb-2">
             <h2 class="text-2xl font-black text-primary">Relatórios</h2>
-            <p class="text-gray-500 text-sm">Exporte as decisões de limites em Excel (.xlsx).</p>
+            <p class="text-gray-500 text-sm">Acompanhe o progresso da análise e exporte as decisões em Excel (.xlsx).</p>
+          </div>
+
+          <!-- Progresso geral -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm flex flex-col justify-center items-center text-center">
+              <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Ainda Aguardando</span>
+              <div class="text-5xl font-black text-secondary my-1" id="rel-pct-aguardando">0%</div>
+              <p class="text-xs text-gray-500"><span id="rel-count-aguardando" class="font-bold">0</span> de <span id="rel-count-total" class="font-bold">0</span> casos</p>
+            </div>
+
+            <div class="lg:col-span-2 bg-white p-6 rounded-lg border border-outline-variant shadow-sm flex flex-col justify-center space-y-4">
+              <div class="flex justify-between items-center">
+                <h4 class="font-bold text-primary">Progresso Geral da Análise</h4>
+                <span class="text-sm font-black text-primary" id="rel-pct-concluido">0% concluído</span>
+              </div>
+              <div class="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+                <div id="rel-barra-concluido" class="bg-primary h-4 rounded-full transition-all" style="width:0%"></div>
+              </div>
+              <div class="grid grid-cols-3 gap-3 text-center pt-1">
+                <div class="bg-amber-50 rounded p-2"><div class="text-lg font-black text-amber-600" id="rel-tot-aguardando">0</div><div class="text-[10px] uppercase font-bold text-gray-500">Aguardando</div></div>
+                <div class="bg-green-50 rounded p-2"><div class="text-lg font-black text-green-700" id="rel-tot-aprovado">0</div><div class="text-[10px] uppercase font-bold text-gray-500">Aprovados</div></div>
+                <div class="bg-blue-50 rounded p-2"><div class="text-lg font-black text-blue-700" id="rel-tot-mantido">0</div><div class="text-[10px] uppercase font-bold text-gray-500">Mantidos</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progresso por produto + por agência -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm">
+              <h4 class="font-bold text-primary mb-4">Progresso por Produto</h4>
+              <div class="space-y-4" id="rel-por-produto"></div>
+            </div>
+
+            <div class="lg:col-span-2 bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col">
+              <div class="p-4 border-b border-outline-variant bg-gray-50 flex justify-between items-center">
+                <h4 class="font-bold text-primary">Progresso por Agência</h4>
+                <span class="text-[10px] text-gray-500 uppercase font-bold">Menos concluídas primeiro</span>
+              </div>
+              <div class="overflow-y-auto max-h-80">
+                <table class="w-full text-left text-sm">
+                  <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase">
+                    <tr><th class="p-3">Agência</th><th class="p-3 text-center">Total</th><th class="p-3 text-center">Aguard.</th><th class="p-3 w-40">Concluído</th></tr>
+                  </thead>
+                  <tbody id="rel-por-agencia" class="divide-y divide-gray-100"></tbody>
+                </table>
+              </div>
+            </div>
           </div>
 
           <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm max-w-2xl space-y-5">
@@ -512,7 +559,7 @@
       };
       document.getElementById('current-tab-title').innerText = titles[tabId];
 
-      if (tabId === 'relatorios') atualizarContagemRelatorio();
+      if (tabId === 'relatorios') { atualizarContagemRelatorio(); renderRelatorioPaineis(); }
     }
 
     function loadAllData() {
@@ -687,6 +734,8 @@
 
       popularFiltroCarteira();
       renderListaAssociados();
+      renderRelatorioPaineis();
+      atualizarContagemRelatorio();
     }
 
     // Renderiza a lista de associados: aplica filtros + busca, limita a exibição
@@ -1180,6 +1229,75 @@
     function atualizarContagemRelatorio() {
       const el = document.getElementById('rel-contagem');
       if (el) el.innerText = filtrarParaRelatorio().length + ' registro(s) no relatório';
+    }
+
+    // Painéis de acompanhamento do progresso da análise
+    function renderRelatorioPaineis() {
+      if (!document.getElementById('rel-pct-aguardando')) return;
+      const assoc = appData.associados || [];
+      const total = assoc.length;
+
+      let aguard = 0, aprov = 0, mant = 0;
+      const porAg = {};
+      const porProd = { 'Conta': { total: 0, aguard: 0 }, 'Cartão': { total: 0, aguard: 0 } };
+
+      assoc.forEach(function(a) {
+        const st = String(a.status || 'AGUARDANDO').toUpperCase();
+        const ag = a.agencia || '(sem agência)';
+        const prod = (String(a.produto || 'Conta').toLowerCase().indexOf('cart') !== -1) ? 'Cartão' : 'Conta';
+        if (st === 'AGUARDANDO') aguard++; else if (st === 'APROVADO') aprov++; else if (st === 'MANTIDO') mant++;
+        if (!porAg[ag]) porAg[ag] = { total: 0, aguard: 0 };
+        porAg[ag].total++; if (st === 'AGUARDANDO') porAg[ag].aguard++;
+        porProd[prod].total++; if (st === 'AGUARDANDO') porProd[prod].aguard++;
+      });
+
+      const decididos = total - aguard;
+      const pctAguard = total ? Math.round(aguard / total * 100) : 0;
+      const pctConcl = total ? Math.round(decididos / total * 100) : 0;
+
+      document.getElementById('rel-pct-aguardando').innerText = pctAguard + '%';
+      document.getElementById('rel-count-aguardando').innerText = aguard;
+      document.getElementById('rel-count-total').innerText = total;
+      document.getElementById('rel-pct-concluido').innerText = pctConcl + '% concluído';
+      document.getElementById('rel-barra-concluido').style.width = pctConcl + '%';
+      document.getElementById('rel-tot-aguardando').innerText = aguard;
+      document.getElementById('rel-tot-aprovado').innerText = aprov;
+      document.getElementById('rel-tot-mantido').innerText = mant;
+
+      // Por produto
+      const barra = function(concl) {
+        return "<div class='w-full bg-gray-100 rounded-full h-2.5'><div class='bg-primary h-2.5 rounded-full' style='width:" + concl + "%'></div></div>";
+      };
+      document.getElementById('rel-por-produto').innerHTML = ['Conta', 'Cartão'].map(function(p) {
+        const d = porProd[p];
+        const concl = d.total ? Math.round((d.total - d.aguard) / d.total * 100) : 0;
+        return "<div>" +
+          "<div class='flex justify-between text-xs mb-1'><span class='font-bold text-gray-700'>" + p + "</span>" +
+          "<span class='text-gray-500'>" + concl + "% · " + d.aguard + " aguard.</span></div>" +
+          barra(concl) + "</div>";
+      }).join('');
+
+      // Por agência (menos concluídas primeiro)
+      const listaAg = Object.keys(porAg).map(function(ag) {
+        const d = porAg[ag];
+        const concl = d.total ? Math.round((d.total - d.aguard) / d.total * 100) : 0;
+        return { ag: ag, total: d.total, aguard: d.aguard, concl: concl };
+      }).sort(function(x, y) { return x.concl - y.concl || y.aguard - x.aguard; });
+
+      const tbody = document.getElementById('rel-por-agencia');
+      if (listaAg.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='4' class='p-6 text-center text-xs text-gray-400'>Sem dados.</td></tr>";
+      } else {
+        tbody.innerHTML = listaAg.map(function(r) {
+          const cor = r.concl >= 100 ? 'bg-green-600' : (r.concl >= 50 ? 'bg-primary' : 'bg-secondary');
+          return "<tr class='hover:bg-gray-50'>" +
+            "<td class='p-3 font-medium text-primary'>" + r.ag + "</td>" +
+            "<td class='p-3 text-center'>" + r.total + "</td>" +
+            "<td class='p-3 text-center font-bold " + (r.aguard > 0 ? "text-secondary" : "text-gray-400") + "'>" + r.aguard + "</td>" +
+            "<td class='p-3'><div class='flex items-center gap-2'><div class='flex-1 bg-gray-100 rounded-full h-2'><div class='" + cor + " h-2 rounded-full' style='width:" + r.concl + "%'></div></div><span class='text-[11px] text-gray-500 w-8 text-right'>" + r.concl + "%</span></div></td>" +
+          "</tr>";
+        }).join('');
+      }
     }
 
     function gerarRelatorioXLS() {
