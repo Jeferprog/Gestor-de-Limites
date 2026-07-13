@@ -487,21 +487,22 @@
             </div>
           </div>
 
-          <!-- Impacto por agência -->
+          <!-- Impacto por agência (detalhado por tipo) -->
           <div class="bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col">
             <div class="p-4 border-b border-outline-variant bg-gray-50 flex justify-between items-center">
               <h4 class="font-bold text-primary">Impacto por Agência</h4>
-              <span class="text-[10px] text-gray-500 uppercase font-bold">Maior aumento primeiro</span>
+              <span class="text-[10px] text-gray-500 uppercase font-bold">Maior aumento primeiro · casos aprovados</span>
             </div>
-            <div class="overflow-y-auto max-h-96">
+            <div class="overflow-y-auto max-h-[32rem]">
               <table class="w-full text-left text-sm">
-                <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase">
+                <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase z-10">
                   <tr>
-                    <th class="p-3">Agência</th>
-                    <th class="p-3 text-center">Aumentos</th>
-                    <th class="p-3 text-center">Implantações</th>
+                    <th class="p-3">Agência / Tipo</th>
+                    <th class="p-3 text-center">Associados</th>
+                    <th class="p-3 text-right">Limite Atual</th>
+                    <th class="p-3 text-right">Novo Limite</th>
                     <th class="p-3 text-right">Aumento (R$)</th>
-                    <th class="p-3 text-right">Novo Limite Total</th>
+                    <th class="p-3 text-right">Aumento (%)</th>
                   </tr>
                 </thead>
                 <tbody id="rel-impacto-agencia" class="divide-y divide-gray-100"></tbody>
@@ -1353,7 +1354,7 @@
       const assoc = appData.associados || [];
 
       const grupos = {};      // "Produto|Operação" -> {n, atual, novo}
-      const porAg = {};       // agência -> {nAumento, nImplant, aumento, novoTotal, atualTotal}
+      const porAg = {};       // agência -> { "Produto|Operação": {n, atual, novo}, ... }
 
       assoc.forEach(function(a) {
         const st = String(a.status || '').toUpperCase();
@@ -1362,16 +1363,15 @@
         const prod = (String(a.produto || 'Conta').toLowerCase().indexOf('cart') !== -1) ? 'Cartão' : 'Conta';
         const op = (String(a.operacao || '').toLowerCase().indexOf('major') !== -1) ? 'Majoração' : 'Implantação';
         const atual = Number(a.limiteAtual) || 0;
-
         const key = prod + '|' + op;
+
         if (!grupos[key]) grupos[key] = { n: 0, atual: 0, novo: 0 };
         grupos[key].n++; grupos[key].atual += atual; grupos[key].novo += novo;
 
         const ag = a.agencia || '(sem agência)';
-        if (!porAg[ag]) porAg[ag] = { nAumento: 0, nImplant: 0, aumento: 0, novoTotal: 0, atualTotal: 0 };
-        const g = porAg[ag];
-        if (op === 'Majoração') g.nAumento++; else g.nImplant++;
-        g.aumento += (novo - atual); g.novoTotal += novo; g.atualTotal += atual;
+        if (!porAg[ag]) porAg[ag] = {};
+        if (!porAg[ag][key]) porAg[ag][key] = { n: 0, atual: 0, novo: 0 };
+        porAg[ag][key].n++; porAg[ag][key].atual += atual; porAg[ag][key].novo += novo;
       });
 
       const pct = function(aum, atual) { return atual > 0 ? ('+' + Math.round(aum / atual * 100) + '%') : (aum > 0 ? 'novo' : '—'); };
@@ -1398,23 +1398,47 @@
       rowsCoop.push(linhaCoop('TOTAL', tot, true));
       document.getElementById('rel-impacto-coop').innerHTML = rowsCoop.join('');
 
-      // Por agência (maior aumento primeiro)
+      // Por agência: mesmo detalhamento por tipo da tabela da cooperativa.
+      // Calcula o total de cada agência e ordena pelo maior aumento.
       const listaAg = Object.keys(porAg).map(function(ag) {
-        const g = porAg[ag]; return { ag: ag, nAumento: g.nAumento, nImplant: g.nImplant, aumento: g.aumento, novoTotal: g.novoTotal };
+        const t = { n: 0, atual: 0, novo: 0 };
+        ordem.forEach(function(o) {
+          const g = porAg[ag][o[0] + '|' + o[1]];
+          if (g) { t.n += g.n; t.atual += g.atual; t.novo += g.novo; }
+        });
+        return { ag: ag, total: t, aumento: t.novo - t.atual };
       }).sort(function(x, y) { return y.aumento - x.aumento; });
 
       const tbodyAg = document.getElementById('rel-impacto-agencia');
       if (listaAg.length === 0) {
-        tbodyAg.innerHTML = "<tr><td colspan='5' class='p-6 text-center text-xs text-gray-400'>Nenhum caso aprovado ainda.</td></tr>";
+        tbodyAg.innerHTML = "<tr><td colspan='6' class='p-6 text-center text-xs text-gray-400'>Nenhum caso aprovado ainda.</td></tr>";
       } else {
         tbodyAg.innerHTML = listaAg.map(function(r) {
-          return "<tr class='hover:bg-gray-50'>" +
-            "<td class='p-3 font-medium text-primary'>" + r.ag + "</td>" +
-            "<td class='p-3 text-center'>" + r.nAumento + "</td>" +
-            "<td class='p-3 text-center'>" + r.nImplant + "</td>" +
-            "<td class='p-3 text-right font-bold text-green-700'>" + formatCurrency(r.aumento) + "</td>" +
-            "<td class='p-3 text-right'>" + formatCurrency(r.novoTotal) + "</td>" +
+          const aumTot = r.total.novo - r.total.atual;
+          // Cabeçalho da agência (com o total)
+          let bloco = "<tr class='bg-primary/10'>" +
+            "<td class='p-2.5 font-black text-primary'>" + r.ag + "</td>" +
+            "<td class='p-2.5 text-center font-bold'>" + r.total.n + "</td>" +
+            "<td class='p-2.5 text-right font-bold'>" + formatCurrency(r.total.atual) + "</td>" +
+            "<td class='p-2.5 text-right font-bold'>" + formatCurrency(r.total.novo) + "</td>" +
+            "<td class='p-2.5 text-right font-black text-green-700'>" + formatCurrency(aumTot) + "</td>" +
+            "<td class='p-2.5 text-right font-black text-green-700'>" + pct(aumTot, r.total.atual) + "</td>" +
           "</tr>";
+          // Linhas por tipo (só as que têm casos)
+          ordem.forEach(function(o) {
+            const g = porAg[r.ag][o[0] + '|' + o[1]];
+            if (!g || g.n === 0) return;
+            const aum = g.novo - g.atual;
+            bloco += "<tr class='text-gray-600'>" +
+              "<td class='p-2 pl-6 text-xs'>" + o[0] + " · " + o[1] + "</td>" +
+              "<td class='p-2 text-center'>" + g.n + "</td>" +
+              "<td class='p-2 text-right'>" + formatCurrency(g.atual) + "</td>" +
+              "<td class='p-2 text-right'>" + formatCurrency(g.novo) + "</td>" +
+              "<td class='p-2 text-right text-green-700'>" + formatCurrency(aum) + "</td>" +
+              "<td class='p-2 text-right text-green-700'>" + pct(aum, g.atual) + "</td>" +
+            "</tr>";
+          });
+          return bloco;
         }).join('');
       }
     }
