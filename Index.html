@@ -464,6 +464,51 @@
             </div>
           </div>
 
+          <!-- Impacto dos novos limites (Cooperativa) -->
+          <div class="bg-white rounded-lg border border-outline-variant shadow-sm">
+            <div class="p-4 border-b border-outline-variant bg-gray-50 flex justify-between items-center">
+              <h4 class="font-bold text-primary">Impacto dos Novos Limites — Cooperativa</h4>
+              <span class="text-[10px] text-gray-500 uppercase font-bold">Casos aprovados</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-primary text-white text-[11px] uppercase">
+                  <tr>
+                    <th class="p-3">Tipo</th>
+                    <th class="p-3 text-center">Associados</th>
+                    <th class="p-3 text-right">Limite Atual</th>
+                    <th class="p-3 text-right">Novo Limite</th>
+                    <th class="p-3 text-right">Aumento (R$)</th>
+                    <th class="p-3 text-right">Aumento (%)</th>
+                  </tr>
+                </thead>
+                <tbody id="rel-impacto-coop" class="divide-y divide-gray-100"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Impacto por agência -->
+          <div class="bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col">
+            <div class="p-4 border-b border-outline-variant bg-gray-50 flex justify-between items-center">
+              <h4 class="font-bold text-primary">Impacto por Agência</h4>
+              <span class="text-[10px] text-gray-500 uppercase font-bold">Maior aumento primeiro</span>
+            </div>
+            <div class="overflow-y-auto max-h-96">
+              <table class="w-full text-left text-sm">
+                <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase">
+                  <tr>
+                    <th class="p-3">Agência</th>
+                    <th class="p-3 text-center">Aumentos</th>
+                    <th class="p-3 text-center">Implantações</th>
+                    <th class="p-3 text-right">Aumento (R$)</th>
+                    <th class="p-3 text-right">Novo Limite Total</th>
+                  </tr>
+                </thead>
+                <tbody id="rel-impacto-agencia" class="divide-y divide-gray-100"></tbody>
+              </table>
+            </div>
+          </div>
+
           <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm max-w-2xl space-y-5">
             <div>
               <h3 class="font-bold text-primary">Relatório de Limites</h3>
@@ -1295,6 +1340,80 @@
             "<td class='p-3 text-center'>" + r.total + "</td>" +
             "<td class='p-3 text-center font-bold " + (r.aguard > 0 ? "text-secondary" : "text-gray-400") + "'>" + r.aguard + "</td>" +
             "<td class='p-3'><div class='flex items-center gap-2'><div class='flex-1 bg-gray-100 rounded-full h-2'><div class='" + cor + " h-2 rounded-full' style='width:" + r.concl + "%'></div></div><span class='text-[11px] text-gray-500 w-8 text-right'>" + r.concl + "%</span></div></td>" +
+          "</tr>";
+        }).join('');
+      }
+
+      renderRelatorioImpacto();
+    }
+
+    // Impacto (valor e %) dos novos limites aprovados — cooperativa e por agência
+    function renderRelatorioImpacto() {
+      if (!document.getElementById('rel-impacto-coop')) return;
+      const assoc = appData.associados || [];
+
+      const grupos = {};      // "Produto|Operação" -> {n, atual, novo}
+      const porAg = {};       // agência -> {nAumento, nImplant, aumento, novoTotal, atualTotal}
+
+      assoc.forEach(function(a) {
+        const st = String(a.status || '').toUpperCase();
+        const novo = Number(a.novoLimiteConfirmado) || 0;
+        if (st !== 'APROVADO' || !(novo > 0)) return; // só casos aprovados
+        const prod = (String(a.produto || 'Conta').toLowerCase().indexOf('cart') !== -1) ? 'Cartão' : 'Conta';
+        const op = (String(a.operacao || '').toLowerCase().indexOf('major') !== -1) ? 'Majoração' : 'Implantação';
+        const atual = Number(a.limiteAtual) || 0;
+
+        const key = prod + '|' + op;
+        if (!grupos[key]) grupos[key] = { n: 0, atual: 0, novo: 0 };
+        grupos[key].n++; grupos[key].atual += atual; grupos[key].novo += novo;
+
+        const ag = a.agencia || '(sem agência)';
+        if (!porAg[ag]) porAg[ag] = { nAumento: 0, nImplant: 0, aumento: 0, novoTotal: 0, atualTotal: 0 };
+        const g = porAg[ag];
+        if (op === 'Majoração') g.nAumento++; else g.nImplant++;
+        g.aumento += (novo - atual); g.novoTotal += novo; g.atualTotal += atual;
+      });
+
+      const pct = function(aum, atual) { return atual > 0 ? ('+' + Math.round(aum / atual * 100) + '%') : (aum > 0 ? 'novo' : '—'); };
+      const linhaCoop = function(rot, g, negrito) {
+        const aum = g.novo - g.atual;
+        const cls = negrito ? "font-black bg-gray-50" : "";
+        return "<tr class='" + cls + "'>" +
+          "<td class='p-3 " + (negrito ? "text-primary" : "font-medium") + "'>" + rot + "</td>" +
+          "<td class='p-3 text-center'>" + g.n + "</td>" +
+          "<td class='p-3 text-right'>" + formatCurrency(g.atual) + "</td>" +
+          "<td class='p-3 text-right'>" + formatCurrency(g.novo) + "</td>" +
+          "<td class='p-3 text-right font-bold text-green-700'>" + formatCurrency(aum) + "</td>" +
+          "<td class='p-3 text-right font-bold text-green-700'>" + pct(aum, g.atual) + "</td>" +
+        "</tr>";
+      };
+
+      const ordem = [['Conta', 'Majoração'], ['Conta', 'Implantação'], ['Cartão', 'Majoração'], ['Cartão', 'Implantação']];
+      const tot = { n: 0, atual: 0, novo: 0 };
+      const rowsCoop = ordem.map(function(o) {
+        const g = grupos[o[0] + '|' + o[1]] || { n: 0, atual: 0, novo: 0 };
+        tot.n += g.n; tot.atual += g.atual; tot.novo += g.novo;
+        return linhaCoop(o[0] + ' · ' + o[1], g, false);
+      });
+      rowsCoop.push(linhaCoop('TOTAL', tot, true));
+      document.getElementById('rel-impacto-coop').innerHTML = rowsCoop.join('');
+
+      // Por agência (maior aumento primeiro)
+      const listaAg = Object.keys(porAg).map(function(ag) {
+        const g = porAg[ag]; return { ag: ag, nAumento: g.nAumento, nImplant: g.nImplant, aumento: g.aumento, novoTotal: g.novoTotal };
+      }).sort(function(x, y) { return y.aumento - x.aumento; });
+
+      const tbodyAg = document.getElementById('rel-impacto-agencia');
+      if (listaAg.length === 0) {
+        tbodyAg.innerHTML = "<tr><td colspan='5' class='p-6 text-center text-xs text-gray-400'>Nenhum caso aprovado ainda.</td></tr>";
+      } else {
+        tbodyAg.innerHTML = listaAg.map(function(r) {
+          return "<tr class='hover:bg-gray-50'>" +
+            "<td class='p-3 font-medium text-primary'>" + r.ag + "</td>" +
+            "<td class='p-3 text-center'>" + r.nAumento + "</td>" +
+            "<td class='p-3 text-center'>" + r.nImplant + "</td>" +
+            "<td class='p-3 text-right font-bold text-green-700'>" + formatCurrency(r.aumento) + "</td>" +
+            "<td class='p-3 text-right'>" + formatCurrency(r.novoTotal) + "</td>" +
           "</tr>";
         }).join('');
       }
