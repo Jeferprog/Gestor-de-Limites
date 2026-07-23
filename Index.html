@@ -546,7 +546,7 @@
               <div class="overflow-y-auto max-h-72">
                 <table class="w-full text-left text-sm">
                   <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase">
-                    <tr><th class="p-2.5">Cooperativa</th><th class="p-2.5 text-center">Total</th><th class="p-2.5 text-center">Liberados</th><th class="p-2.5 text-center">Taxa</th></tr>
+                    <tr><th class="p-2.5">Agência</th><th class="p-2.5 text-center">Total</th><th class="p-2.5 text-center">Liberados</th><th class="p-2.5 text-center">Taxa</th></tr>
                   </thead>
                   <tbody id="rel-retorno-coop" class="divide-y divide-gray-100"></tbody>
                 </table>
@@ -644,11 +644,11 @@
                 <div class="p-6 space-y-3 overflow-y-auto max-h-96" id="ret-por-motivo"></div>
               </div>
               <div class="bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col">
-                <div class="p-4 border-b border-outline-variant bg-gray-50"><h4 class="font-bold text-primary">Por Cooperativa</h4></div>
+                <div class="p-4 border-b border-outline-variant bg-gray-50"><h4 class="font-bold text-primary">Por Agência</h4></div>
                 <div class="overflow-y-auto max-h-96">
                   <table class="w-full text-left text-sm">
                     <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase">
-                      <tr><th class="p-3">Cooperativa</th><th class="p-3 text-center">Total</th><th class="p-3 text-center">Liberados</th><th class="p-3 w-32">Taxa</th></tr>
+                      <tr><th class="p-3">Agência</th><th class="p-3 text-center">Total</th><th class="p-3 text-center">Liberados</th><th class="p-3 w-32">Taxa</th></tr>
                     </thead>
                     <tbody id="ret-por-coop" class="divide-y divide-gray-100"></tbody>
                   </table>
@@ -1758,17 +1758,46 @@
       const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
       if (!isGAS) { alert('Importação disponível apenas no ambiente Google Sheets.'); return; }
 
-      const ehExcel = /\.(xlsx|xls|xlsm)$/i.test(file.name);
-      const leitura = ehExcel ? lerExcelComoCsv(file) : readFileSmart(file);
-
       mostrarRetStatus('Lendo "' + file.name + '"...');
-      leitura.then(function(conteudo) {
+      lerRetornoComoTabela(file).then(function(conteudo) {
         return processarRetornoEmLotes(file.name, conteudo);
       }).catch(function(err) {
         esconderRetStatus();
         alert('Não foi possível ler o arquivo: ' + err);
       });
       event.target.value = '';
+    }
+
+    // Lê o retorno (XLS/XLSX/CSV) como matriz e sanitiza cada célula, garantindo
+    // UM registro por linha mesmo quando há texto com quebras de linha (ex.: Resultado).
+    function lerRetornoComoTabela(file) {
+      return new Promise(function(resolve, reject) {
+        if (typeof XLSX === 'undefined') { reject('Biblioteca de leitura não carregou.'); return; }
+        const reader = new FileReader();
+        reader.onerror = function() { reject(reader.error); };
+        reader.onload = function() {
+          try {
+            let wb;
+            if (/\.(xlsx|xls|xlsm)$/i.test(file.name)) {
+              wb = XLSX.read(new Uint8Array(reader.result), { type: 'array' });
+            } else {
+              let txt = new TextDecoder('utf-8').decode(reader.result);
+              if (txt.indexOf('�') !== -1) txt = new TextDecoder('iso-8859-1').decode(reader.result);
+              wb = XLSX.read(txt, { type: 'string' }); // respeita aspas/multilinha do CSV
+            }
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+            // Cada célula vira texto de uma linha só (remove \r \n \t); delimitador = TAB
+            const linhas = aoa
+              .filter(function(row) { return row && row.length; })
+              .map(function(row) {
+                return row.map(function(c) { return String(c == null ? '' : c).replace(/[\r\n\t]+/g, ' ').trim(); }).join('\t');
+              });
+            resolve(linhas.join('\n'));
+          } catch (e) { reject(e); }
+        };
+        reader.readAsArrayBuffer(file);
+      });
     }
 
     async function processarRetornoEmLotes(nomeArquivo, conteudo) {
