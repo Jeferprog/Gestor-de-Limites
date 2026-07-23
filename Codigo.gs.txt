@@ -237,6 +237,7 @@ function obterDadosCompletos() {
     // evitando falha de transporte que deixaria a tela vazia.
     return jsonSeguro({
       usuario: usuario,
+      bloqueado: estaBloqueado(),
       associados: associados,
       uploads: uploads.reverse(), // Ordena mais novos primeiro
       protocolos: protocolos,
@@ -264,6 +265,7 @@ function obterDadosCompletos() {
 // Lê apenas a coluna de ID (rápido mesmo em bases grandes).
 function confirmarNovoLimite(id, novoLimite, justificativa) {
   try {
+    if (estaBloqueado()) return { success: false, error: "A edição de limites está bloqueada." };
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Associados");
     var m = mapaColunas(sheet);
@@ -301,6 +303,7 @@ function confirmarNovoLimite(id, novoLimite, justificativa) {
 // Tira-o da fila de análise sem registrar um novo limite.
 function manterLimite(id, justificativa) {
   try {
+    if (estaBloqueado()) return { success: false, error: "A edição de limites está bloqueada." };
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Associados");
     var m = mapaColunas(sheet);
@@ -587,6 +590,26 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     return { success: true, registros: registrosProcessados };
   } catch (err) {
     registrarUpload(nomeArquivo, tipoLista, 0, "Erro no Layout", err.toString());
+    return { success: false, error: err.toString() };
+  }
+}
+
+// ---- Bloqueio global de edição de limites ----
+function estaBloqueado() {
+  try { return PropertiesService.getScriptProperties().getProperty("EDICAO_BLOQUEADA") === "true"; }
+  catch (e) { return false; }
+}
+
+// Define o bloqueio de edição de limites (somente SEDE)
+function definirBloqueio(bloquear) {
+  try {
+    var u = obterUsuarioAtual();
+    if (!(u.isSede || u.semColaboradores || u.semIdentificacao)) {
+      return { success: false, error: "Apenas a SEDE pode bloquear/desbloquear a edição." };
+    }
+    PropertiesService.getScriptProperties().setProperty("EDICAO_BLOQUEADA", bloquear ? "true" : "false");
+    return { success: true, bloqueado: !!bloquear };
+  } catch (err) {
     return { success: false, error: err.toString() };
   }
 }

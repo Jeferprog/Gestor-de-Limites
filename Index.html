@@ -231,6 +231,20 @@
             <p class="text-gray-500 text-sm">Importe as listas de solicitação de crédito e implantação.</p>
           </div>
 
+          <!-- Bloqueio de edição de limites -->
+          <div class="bg-white p-5 rounded-lg border border-outline-variant shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined" id="lock-icon">lock_open</span>
+              <div>
+                <h4 class="font-bold text-primary">Edição de Limites</h4>
+                <p class="text-xs text-gray-500" id="lock-desc">As agências podem confirmar/manter os limites.</p>
+              </div>
+            </div>
+            <button id="btn-bloqueio" onclick="alternarBloqueio()" class="font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shrink-0 bg-primary text-white hover:brightness-110">
+              <span class="material-symbols-outlined text-base">lock</span> <span id="btn-bloqueio-txt">Bloquear edição</span>
+            </button>
+          </div>
+
           <!-- Input de arquivo oculto e reutilizado por todos os cards -->
           <input type="file" id="file-input" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" class="hidden" onchange="handleFileSelected(event)"/>
 
@@ -327,6 +341,12 @@
                   <select id="filtro-carteira" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
                     <option value="">Todas as carteiras</option>
                   </select>
+                  <select id="filtro-retorno" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white col-span-2">
+                    <option value="">Todos os retornos do robô</option>
+                    <option value="Liberado">Robô: Liberado</option>
+                    <option value="Pendência">Robô: Pendência</option>
+                    <option value="SEM">Sem retorno do robô</option>
+                  </select>
                 </div>
               </div>
               <div class="flex-1 overflow-y-auto">
@@ -398,12 +418,13 @@
                   <p class="text-xs opacity-75" id="det-atual">Limite Atual: R$ 0,00</p>
 
                   <div class="space-y-2 pt-2">
+                    <div id="det-bloqueio-aviso" class="hidden bg-white/20 rounded p-2 text-xs flex items-center gap-1"><span class="material-symbols-outlined text-sm">lock</span> Edição bloqueada pela SEDE.</div>
                     <input type="number" id="input-confirm-limit" class="w-full bg-white text-primary font-bold rounded p-2 text-sm border-none"/>
                     <textarea id="input-confirm-justification" rows="2" class="w-full bg-white/15 text-white rounded p-2 text-xs border-none" placeholder="Justificativa..."></textarea>
-                    <button onclick="submitNewLimit()" class="w-full py-2 bg-secondary text-white font-bold text-xs rounded hover:brightness-105">
+                    <button id="btn-det-confirmar" onclick="submitNewLimit()" class="w-full py-2 bg-secondary text-white font-bold text-xs rounded hover:brightness-105">
                       Confirmar Novo Limite
                     </button>
-                    <button onclick="submitManterLimite()" class="w-full py-2 bg-white/15 text-white font-bold text-xs rounded hover:bg-white/25 flex items-center justify-center gap-1">
+                    <button id="btn-det-manter" onclick="submitManterLimite()" class="w-full py-2 bg-white/15 text-white font-bold text-xs rounded hover:bg-white/25 flex items-center justify-center gap-1">
                       <span class="material-symbols-outlined text-sm">do_not_disturb_on</span> Manter (não alterar)
                     </button>
                   </div>
@@ -511,6 +532,25 @@
                 </thead>
                 <tbody id="rel-impacto-agencia" class="divide-y divide-gray-100"></tbody>
               </table>
+            </div>
+          </div>
+
+          <!-- Resumo do retorno do robô -->
+          <div id="rel-retorno-bloco" class="hidden bg-white rounded-lg border border-outline-variant shadow-sm">
+            <div class="p-4 border-b border-outline-variant bg-gray-50 flex justify-between items-center">
+              <h4 class="font-bold text-primary">Resumo do Retorno do Robô</h4>
+              <span class="text-[10px] text-gray-500 uppercase font-bold" id="rel-retorno-taxa">—</span>
+            </div>
+            <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="space-y-3" id="rel-retorno-motivos"></div>
+              <div class="overflow-y-auto max-h-72">
+                <table class="w-full text-left text-sm">
+                  <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase">
+                    <tr><th class="p-2.5">Cooperativa</th><th class="p-2.5 text-center">Total</th><th class="p-2.5 text-center">Liberados</th><th class="p-2.5 text-center">Taxa</th></tr>
+                  </thead>
+                  <tbody id="rel-retorno-coop" class="divide-y divide-gray-100"></tbody>
+                </table>
+              </div>
             </div>
           </div>
 
@@ -648,7 +688,9 @@
     let filtroProduto = '';
     let filtroOperacao = '';
     let filtroStatus = '';
+    let filtroRetorno = '';
     let filtroBusca = '';
+    let edicaoBloqueada = false;
     let buscaTimer = null;
     const MAX_LISTA = 200; // limite de linhas exibidas por vez (bases grandes)
     let podeImportar = true; // SEDE (ou modos fail-safe) podem importar listas
@@ -857,11 +899,15 @@
         uploadTbody.appendChild(tr);
       });
 
+      edicaoBloqueada = !!appData.bloqueado;
+      aplicarBloqueioUI();
+
       popularFiltroCarteira();
       renderListaAssociados();
       renderRelatorioPaineis();
       atualizarContagemRelatorio();
       renderRetornoRobo();
+      renderResumoRetornoRelatorio();
     }
 
     // Renderiza a lista de associados: aplica filtros + busca, limita a exibição
@@ -873,6 +919,7 @@
         (!filtroProduto || (a.produto || 'Conta') === filtroProduto) &&
         (!filtroOperacao || (a.operacao || '') === filtroOperacao) &&
         (!filtroStatus || String(a.status || 'AGUARDANDO').toUpperCase() === filtroStatus) &&
+        (!filtroRetorno || (filtroRetorno === 'SEM' ? !a.retornoRobo : (a.retornoClasse || '') === filtroRetorno)) &&
         (!busca || String(a.nome || '').toLowerCase().indexOf(busca) !== -1 ||
                    String(a.cpfCnpj || '').toLowerCase().indexOf(busca) !== -1)
       );
@@ -904,6 +951,8 @@
             sugestaoCell = "<span class='font-bold text-blue-700' title='Limite mantido (sem alteração)'>Mantido</span>";
           } else if (aprovado || st === 'APROVADO') {
             sugestaoCell = "<span class='font-bold text-green-700' title='Novo limite confirmado'>" + formatCurrency(a.novoLimiteConfirmado || a.sugestaoMotor) + "</span>";
+          } else if (edicaoBloqueada) {
+            sugestaoCell = "<span class='text-secondary'>" + formatCurrency(a.sugestaoMotor) + "</span>";
           } else {
             sugestaoCell =
               "<div class='flex items-center justify-end gap-1'>" +
@@ -967,6 +1016,7 @@
       filtroProduto = document.getElementById('filtro-produto').value;
       filtroOperacao = document.getElementById('filtro-operacao').value;
       filtroStatus = document.getElementById('filtro-status').value;
+      filtroRetorno = document.getElementById('filtro-retorno').value;
       renderListaAssociados();
     }
 
@@ -1125,6 +1175,7 @@
     // Confirma o limite com atualização OTIMISTA: a tela muda na hora e a
     // gravação ocorre em segundo plano (reverte automaticamente se falhar).
     function enviarConfirmacao(id, valor, justificativa) {
+      if (edicaoBloqueada) { alert('A edição de limites está bloqueada pela SEDE.'); return; }
       const val = Number(valor);
       if (!(val > 0)) { alert('Informe um valor de limite válido.'); return; }
 
@@ -1172,6 +1223,7 @@
 
     // "Manter" com atualização OTIMISTA (status MANTIDO, sem novo limite)
     function manterLimiteAssoc(id) {
+      if (edicaoBloqueada) { alert('A edição de limites está bloqueada pela SEDE.'); return; }
       const a = (appData.associados || []).find(x => x.id === id);
       if (!a) return;
 
@@ -1617,6 +1669,77 @@
           "<td class='p-3'><div class='flex items-center gap-2'><div class='flex-1 bg-gray-100 rounded-full h-2'><div class='" + cor + " h-2 rounded-full' style='width:" + c.taxa + "%'></div></div><span class='text-[11px] text-gray-500 w-8 text-right'>" + c.taxa + "%</span></div></td>" +
         "</tr>";
       }).join('') || "<tr><td colspan='4' class='p-4 text-center text-xs text-gray-400'>Sem dados.</td></tr>";
+    }
+
+    // ---- Bloqueio de edição de limites ----
+    function aplicarBloqueioUI() {
+      const icon = document.getElementById('lock-icon');
+      const desc = document.getElementById('lock-desc');
+      const btn = document.getElementById('btn-bloqueio');
+      const btnTxt = document.getElementById('btn-bloqueio-txt');
+      if (btn) {
+        if (edicaoBloqueada) {
+          if (icon) icon.innerText = 'lock';
+          if (desc) desc.innerText = 'Edição BLOQUEADA: as agências não podem mais alterar limites.';
+          btn.className = 'font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shrink-0 bg-green-600 text-white hover:brightness-110';
+          if (btnTxt) btnTxt.innerText = 'Desbloquear edição';
+        } else {
+          if (icon) icon.innerText = 'lock_open';
+          if (desc) desc.innerText = 'As agências podem confirmar/manter os limites.';
+          btn.className = 'font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shrink-0 bg-primary text-white hover:brightness-110';
+          if (btnTxt) btnTxt.innerText = 'Bloquear edição';
+        }
+      }
+      ['input-confirm-limit', 'input-confirm-justification', 'btn-det-confirmar', 'btn-det-manter'].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) { el.disabled = edicaoBloqueada; el.classList.toggle('opacity-50', edicaoBloqueada); el.classList.toggle('cursor-not-allowed', edicaoBloqueada); }
+      });
+      const aviso = document.getElementById('det-bloqueio-aviso');
+      if (aviso) aviso.classList.toggle('hidden', !edicaoBloqueada);
+    }
+
+    function alternarBloqueio() {
+      const novo = !edicaoBloqueada;
+      if (!confirm(novo ? 'Bloquear a edição de limites para todas as agências?' : 'Desbloquear a edição de limites?')) return;
+      const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
+      if (!isGAS) { edicaoBloqueada = novo; aplicarBloqueioUI(); renderListaAssociados(); return; }
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res && res.success) { edicaoBloqueada = !!res.bloqueado; aplicarBloqueioUI(); renderListaAssociados(); }
+          else alert('Não foi possível: ' + ((res && res.error) || 'erro'));
+        })
+        .withFailureHandler(function(e) { alert('Falha: ' + e); })
+        .definirBloqueio(novo);
+    }
+
+    // Resumo do retorno do robô na aba Relatórios
+    function renderResumoRetornoRelatorio() {
+      const bloco = document.getElementById('rel-retorno-bloco');
+      if (!bloco) return;
+      const r = appData.retornoResumo;
+      if (!r || !r.temDados) { bloco.classList.add('hidden'); return; }
+      bloco.classList.remove('hidden');
+
+      const total = r.total || 0;
+      const pctLib = total ? Math.round((r.liberados || 0) / total * 100) : 0;
+      document.getElementById('rel-retorno-taxa').innerText = 'Liberação: ' + pctLib + '% · ' + total + ' processados';
+
+      const motivos = Object.keys(r.porMotivo || {}).map(function(m) {
+        return { motivo: m, total: r.porMotivo[m].total, classe: r.porMotivo[m].classe };
+      }).sort(function(a, b) { return b.total - a.total; });
+      document.getElementById('rel-retorno-motivos').innerHTML = motivos.map(function(m) {
+        const pct = total ? Math.round(m.total / total * 100) : 0;
+        const lib = String(m.classe).toLowerCase().indexOf('liber') !== -1;
+        return "<div><div class='flex justify-between text-xs mb-1'><span class='font-bold text-gray-700'>" + m.motivo + "</span><span class='text-gray-500'>" + m.total + " (" + pct + "%)</span></div>" +
+          "<div class='w-full bg-gray-100 rounded-full h-2.5'><div class='" + (lib ? 'bg-green-600' : 'bg-red-500') + " h-2.5 rounded-full' style='width:" + pct + "%'></div></div></div>";
+      }).join('');
+
+      const coops = Object.keys(r.porCoop || {}).map(function(c) {
+        const d = r.porCoop[c]; return { coop: c, total: d.total, lib: d.liberados, taxa: d.total ? Math.round(d.liberados / d.total * 100) : 0 };
+      }).sort(function(a, b) { return a.taxa - b.taxa; });
+      document.getElementById('rel-retorno-coop').innerHTML = coops.map(function(c) {
+        return "<tr class='hover:bg-gray-50'><td class='p-2.5 font-medium text-primary'>" + c.coop + "</td><td class='p-2.5 text-center'>" + c.total + "</td><td class='p-2.5 text-center text-green-700 font-bold'>" + c.lib + "</td><td class='p-2.5 text-center'>" + c.taxa + "%</td></tr>";
+      }).join('');
     }
 
     // Envolve google.script.run numa Promise (para envio sequencial em lotes)
