@@ -35,6 +35,12 @@ var COLUNAS_ASSOCIADOS = [
   "Limite SCR", "Saldo Devedor"
 ];
 
+// Colunas da aba Retornos (resultado do robô/RPA)
+var COLUNAS_RETORNOS = [
+  "ID", "Data Hora Registro", "Conta", "Limite", "Cooperativa", "Resultado",
+  "Retorno RPA", "Data Hora Resultado", "Alçada", "Contrato Gerado", "Liberado?"
+];
+
 // Inicializa a planilha com as abas e cabeçalhos necessários, caso não existam
 function inicializarPlanilha() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -80,6 +86,15 @@ function inicializarPlanilha() {
     }
     shColab.setFrozenRows(1);
     shColab.autoResizeColumns(1, 3);
+  }
+
+  // 5. Aba de Retornos (resultado do robô/RPA)
+  var shRet = ss.getSheetByName("Retornos");
+  if (!shRet) {
+    shRet = ss.insertSheet("Retornos");
+    shRet.appendRow(COLUNAS_RETORNOS);
+    shRet.setFrozenRows(1);
+    shRet.autoResizeColumns(1, COLUNAS_RETORNOS.length);
   }
 
   // Garante todas as colunas (incl. novas) em planilhas já existentes (migração)
@@ -163,6 +178,9 @@ function obterDadosCompletos() {
     var totalLinhasAssociados = dadosAssociados.length;   // inclui cabeçalho
     var associadosAntesFiltro = associados.length;
 
+    // 1b. Retornos do robô: vincula por CONTA e monta o resumo geral
+    var retornoResumo = carregarRetornosEVincular(ss, associados);
+
     // 2. Carrega Uploads
     var shUploads = ss.getSheetByName("Uploads");
     var dadosUploads = shUploads.getDataRange().getValues();
@@ -219,9 +237,11 @@ function obterDadosCompletos() {
     // evitando falha de transporte que deixaria a tela vazia.
     return jsonSeguro({
       usuario: usuario,
+      bloqueado: estaBloqueado(),
       associados: associados,
       uploads: uploads.reverse(), // Ordena mais novos primeiro
       protocolos: protocolos,
+      retornoResumo: retornoResumo,
       estatisticas: {
         totalPendente: totalPendente,
         limiteContaTotal: limiteContaTotal,
@@ -245,6 +265,7 @@ function obterDadosCompletos() {
 // Lê apenas a coluna de ID (rápido mesmo em bases grandes).
 function confirmarNovoLimite(id, novoLimite, justificativa) {
   try {
+    if (estaBloqueado()) return { success: false, error: "A edição de limites está bloqueada." };
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Associados");
     var m = mapaColunas(sheet);
@@ -282,6 +303,7 @@ function confirmarNovoLimite(id, novoLimite, justificativa) {
 // Tira-o da fila de análise sem registrar um novo limite.
 function manterLimite(id, justificativa) {
   try {
+    if (estaBloqueado()) return { success: false, error: "A edição de limites está bloqueada." };
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Associados");
     var m = mapaColunas(sheet);
@@ -568,6 +590,163 @@ function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
     return { success: true, registros: registrosProcessados };
   } catch (err) {
     registrarUpload(nomeArquivo, tipoLista, 0, "Erro no Layout", err.toString());
+    return { success: false, error: err.toString() };
+  }
+}
+
+// ---- Bloqueio global de edição de limites ----
+function estaBloqueado() {
+  try { return PropertiesService.getScriptProperties().getProperty("EDICAO_BLOQUEADA") === "true"; }
+  catch (e) { return false; }
+}
+
+// Define o bloqueio de edição de limites (somente SEDE)
+function definirBloqueio(bloquear) {
+  try {
+    var u = obterUsuarioAtual();
+    if (!(u.isSede || u.semColaboradores || u.semIdentificacao)) {
+      return { success: false, error: "Apenas a SEDE pode bloquear/desbloquear a edição." };
+    }
+    PropertiesService.getScriptProperties().setProperty("EDICAO_BLOQUEADA", bloquear ? "true" : "false");
+    return { success: true, bloqueado: !!bloquear };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// Normaliza número de conta para comparação (apenas dígitos)
+function normalizarConta(v) { return String(v || "").replace(/\D/g, ""); }
+
+// Lê a aba Retornos, anexa o resultado do robô em cada associado (por CONTA)
+// e devolve um resumo agregado (por motivo e por cooperativa).
+function carregarRetornosEVincular(ss, associados) {
+  var resumo = { total: 0, liberados: 0, pendencias: 0, porMotivo: {}, porCoop: {}, temDados: false };
+  var shRet = ss.getSheetByName("Retornos");
+  if (!shRet) return resumo;
+  var dados = shRet.getDataRange().getValues();
+  if (dados.length < 2) return resumo;
+
+  var m = {};
+  for (var c = 0; c < dados[0].length; c++) m[normalizarCol(dados[0][c])] = c;
+  var cConta = m["conta"], cResultado = (m["retorno rpa"] !== undefined ? m["retorno rpa"] : m["resultado"]);
+  var cLiberado = (m["liberado?"] !== undefined ? m["liberado?"] : m["liberado"]);
+  var cCoop = m["cooperativa"], cData = m["data hora resultado"];
+
+  var porConta = {}; // conta normalizada -> {motivo, classe}
+  for (var i = 1; i < dados.length; i++) {
+    var r = dados[i];
+    var conta = normalizarConta(cConta !== undefined ? r[cConta] : "");
+    if (!conta) continue;
+    var motivo = String((cResultado !== undefined ? r[cResultado] : "") || "").replace(/\.$/, "").trim() || "(sem retorno)";
+    var libTxt = String((cLiberado !== undefined ? r[cLiberado] : "") || "");
+    var classe = classificarRetorno(motivo + " " + libTxt);
+    var coop = String((cCoop !== undefined ? r[cCoop] : "") || "").trim() || "(sem cooperativa)";
+
+    resumo.total++;
+    if (classe === "Liberado") resumo.liberados++; else resumo.pendencias++;
+    if (!resumo.porMotivo[motivo]) resumo.porMotivo[motivo] = { total: 0, classe: classe };
+    resumo.porMotivo[motivo].total++;
+    if (!resumo.porCoop[coop]) resumo.porCoop[coop] = { total: 0, liberados: 0 };
+    resumo.porCoop[coop].total++;
+    if (classe === "Liberado") resumo.porCoop[coop].liberados++;
+
+    porConta[conta] = { motivo: motivo, classe: classe };
+  }
+  resumo.temDados = resumo.total > 0;
+
+  // Vincula ao associado pela conta
+  associados.forEach(function(a) {
+    var ret = porConta[normalizarConta(a.conta)];
+    a.retornoRobo = ret ? ret.motivo : "";
+    a.retornoClasse = ret ? ret.classe : "";
+  });
+
+  return resumo;
+}
+
+// Classifica o retorno do robô: "Liberado" (contrato ok/ativo) ou "Pendência"
+function classificarRetorno(texto) {
+  var t = normalizarCol(texto);
+  if (t.indexOf("sucesso") !== -1 || t.indexOf("aprovado") !== -1 ||
+      t.indexOf("ativo") !== -1 || t.indexOf("liberado") !== -1) {
+    return "Liberado";
+  }
+  return "Pendência";
+}
+
+// Importa (em lotes) o arquivo de retorno do robô. Restrito à SEDE.
+// primeiroLote=true limpa os dados anteriores (nova rodada de retorno).
+function importarRetornoRobo(nomeArquivo, conteudoTexto, primeiroLote) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    inicializarPlanilha();
+
+    var u = obterUsuarioAtual();
+    if (!(u.isSede || u.semColaboradores || u.semIdentificacao)) {
+      return { success: false, error: "Apenas a SEDE pode importar o retorno do robô." };
+    }
+
+    conteudoTexto = String(conteudoTexto).replace(/^﻿/, '');
+    var linhas = conteudoTexto.split(/\r?\n/);
+    if (linhas.length === 0 || linhas[0].trim() === "") {
+      return { success: false, error: "Arquivo vazio." };
+    }
+
+    var delim = detectarDelimitador(linhas[0]);
+    var cab = linhas[0].split(delim).map(function(c) { return c.replace(/^["']|["']$/g, '').trim(); });
+
+    var idx = { id: -1, dataReg: -1, conta: -1, limite: -1, coop: -1, resultado: -1,
+                retornoRpa: -1, dataRes: -1, alcada: -1, contrato: -1, liberado: -1 };
+    cab.forEach(function(c, i) {
+      var x = normalizarCol(c);
+      if (x === "id") idx.id = i;
+      else if (x === "data hora registro") idx.dataReg = i;
+      else if (x === "conta") idx.conta = i;
+      else if (x === "limite") idx.limite = i;
+      else if (x === "cooperativa") idx.coop = i;
+      else if (x === "resultado") idx.resultado = i;
+      else if (x === "retorno rpa") idx.retornoRpa = i;
+      else if (x === "data hora resultado") idx.dataRes = i;
+      else if (x.indexOf("alcada") !== -1) idx.alcada = i;
+      else if (x === "contrato gerado") idx.contrato = i;
+      else if (x.indexOf("liberado") !== -1) idx.liberado = i;
+    });
+
+    if (idx.conta === -1 || (idx.resultado === -1 && idx.retornoRpa === -1)) {
+      return { success: false, error: "Layout do retorno incompatível (falta CONTA e/ou RESULTADO)." };
+    }
+
+    var shRet = ss.getSheetByName("Retornos");
+    if (primeiroLote) {
+      var lr = shRet.getLastRow();
+      if (lr > 1) shRet.getRange(2, 1, lr - 1, shRet.getLastColumn()).clearContent();
+    }
+
+    var pega = function(cols, j) { return (j === -1) ? "" : (cols[j] || ""); };
+    var novas = [];
+    for (var i = 1; i < linhas.length; i++) {
+      var lt = linhas[i].trim();
+      if (lt === "") continue;
+      var cols = lt.split(delim).map(function(c) { return c.replace(/^["']|["']$/g, '').trim(); });
+      if (cols.length < 2) continue;
+      var conta = pega(cols, idx.conta);
+      if (!String(conta).trim()) continue;
+      novas.push([
+        pega(cols, idx.id), pega(cols, idx.dataReg), conta,
+        parseDinheiro(pega(cols, idx.limite)), pega(cols, idx.coop),
+        pega(cols, idx.resultado), pega(cols, idx.retornoRpa), pega(cols, idx.dataRes),
+        pega(cols, idx.alcada), pega(cols, idx.contrato), pega(cols, idx.liberado)
+      ]);
+    }
+
+    if (novas.length > 0) {
+      var start = shRet.getLastRow() + 1;
+      var need = start + novas.length - 1;
+      if (need > shRet.getMaxRows()) shRet.insertRowsAfter(shRet.getMaxRows(), need - shRet.getMaxRows());
+      shRet.getRange(start, 1, novas.length, COLUNAS_RETORNOS.length).setValues(novas);
+    }
+    return { success: true, registros: novas.length };
+  } catch (err) {
     return { success: false, error: err.toString() };
   }
 }
