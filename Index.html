@@ -135,7 +135,7 @@
           </div>
 
           <!-- KPI Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-5 gap-6">
             <div class="bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-primary flex flex-col justify-between h-32">
               <div>
                 <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Limite de Conta (Atual)</span>
@@ -173,6 +173,17 @@
               </div>
               <div class="flex items-center text-purple-700 font-bold text-xs gap-1">
                 <span class="material-symbols-outlined text-sm">task_alt</span> <span id="kpi-aprov-cartao-count">0</span> aprovados
+              </div>
+            </div>
+
+            <div id="card-liberados" class="hidden bg-white p-6 rounded-lg shadow-sm border border-outline-variant border-l-4 border-teal-600 flex-col justify-between h-32 md:col-span-2 xl:col-span-1">
+              <div>
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Limites Liberados (Robô)</span>
+                <h3 class="text-2xl font-black text-gray-900 mt-1" id="kpi-lib-total">R$ 0,00</h3>
+              </div>
+              <div class="text-[11px] font-bold text-teal-700 leading-tight">
+                <div>Implantação: <span id="kpi-lib-impl">R$ 0,00</span></div>
+                <div>Majoração: <span id="kpi-lib-major">R$ 0,00</span></div>
               </div>
             </div>
           </div>
@@ -322,31 +333,46 @@
                          class="w-full text-xs border-gray-300 rounded py-1.5 pl-8 pr-2 bg-white"/>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
-                  <select id="filtro-produto" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
-                    <option value="">Todos os produtos</option>
-                    <option value="Conta">Conta (Cheque Esp.)</option>
-                    <option value="Cartão">Cartão de Crédito</option>
-                  </select>
-                  <select id="filtro-operacao" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
-                    <option value="">Todas as operações</option>
-                    <option value="Majoração">Majoração</option>
-                    <option value="Implantação">Implantação</option>
-                  </select>
-                  <select id="filtro-status" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
-                    <option value="">Todos os status</option>
-                    <option value="AGUARDANDO">Aguardando</option>
-                    <option value="APROVADO">Aprovado</option>
-                    <option value="MANTIDO">Mantido</option>
-                  </select>
-                  <select id="filtro-carteira" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white">
-                    <option value="">Todas as carteiras</option>
-                  </select>
-                  <select id="filtro-retorno" onchange="aplicarFiltros()" class="text-xs border-gray-300 rounded py-1.5 bg-white col-span-2">
-                    <option value="">Todos os retornos do robô</option>
-                    <option value="Liberado">Robô: Liberado</option>
-                    <option value="Pendência">Robô: Pendência</option>
-                    <option value="SEM">Sem retorno do robô</option>
-                  </select>
+                  <div>
+                    <label class="text-[10px] text-gray-500 uppercase font-bold block mb-0.5">Produto</label>
+                    <select id="filtro-produto" onchange="aplicarFiltros()" class="w-full text-xs border-gray-300 rounded py-1.5 bg-white">
+                      <option value="">Todos os produtos</option>
+                      <option value="Conta">Conta (Cheque Esp.)</option>
+                      <option value="Cartão">Cartão de Crédito</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-[10px] text-gray-500 uppercase font-bold block mb-0.5">Operação</label>
+                    <select id="filtro-operacao" onchange="aplicarFiltros()" class="w-full text-xs border-gray-300 rounded py-1.5 bg-white">
+                      <option value="">Todas as operações</option>
+                      <option value="Majoração">Majoração</option>
+                      <option value="Implantação">Implantação</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-[10px] text-gray-500 uppercase font-bold block mb-0.5">Status</label>
+                    <select id="filtro-status" onchange="aplicarFiltros()" class="w-full text-xs border-gray-300 rounded py-1.5 bg-white">
+                      <option value="">Todos os status</option>
+                      <option value="AGUARDANDO">Aguardando</option>
+                      <option value="APROVADO">Aprovado</option>
+                      <option value="MANTIDO">Mantido</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-[10px] text-gray-500 uppercase font-bold block mb-0.5">Carteira</label>
+                    <select id="filtro-carteira" onchange="aplicarFiltros()" class="w-full text-xs border-gray-300 rounded py-1.5 bg-white">
+                      <option value="">Todas as carteiras</option>
+                    </select>
+                  </div>
+                  <div class="col-span-2">
+                    <label class="text-[10px] text-gray-500 uppercase font-bold block mb-0.5">Retorno do Robô</label>
+                    <select id="filtro-retorno" onchange="aplicarFiltros()" class="w-full text-xs border-gray-300 rounded py-1.5 bg-white">
+                      <option value="">Todos os retornos do robô</option>
+                      <option value="Liberado">Robô: Liberado</option>
+                      <option value="Pendência">Robô: Pendência</option>
+                      <option value="SEM">Sem retorno do robô</option>
+                    </select>
+                  </div>
                 </div>
                 <div id="legenda-retorno" class="hidden items-center gap-4 text-[10px] text-gray-500 pt-1">
                   <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-green-100 border-l-2 border-green-500"></span> Robô: Liberado</span>
@@ -551,7 +577,7 @@
               <div class="overflow-y-auto max-h-72">
                 <table class="w-full text-left text-sm">
                   <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase">
-                    <tr><th class="p-2.5">Agência</th><th class="p-2.5 text-center">Total</th><th class="p-2.5 text-center">Liberados</th><th class="p-2.5 text-center">Taxa</th></tr>
+                    <tr><th class="p-2.5">Agência</th><th class="p-2.5 text-center">Total</th><th class="p-2.5 text-center">Liberados</th><th class="p-2.5 text-right">Liberado — Majoração</th><th class="p-2.5 text-right">Liberado — Implantação</th><th class="p-2.5 text-center">Taxa</th></tr>
                   </thead>
                   <tbody id="rel-retorno-coop" class="divide-y divide-gray-100"></tbody>
                 </table>
@@ -660,7 +686,7 @@
                 <div class="overflow-y-auto max-h-96">
                   <table class="w-full text-left text-sm">
                     <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase">
-                      <tr><th class="p-3">Agência</th><th class="p-3 text-center">Total</th><th class="p-3 text-center">Liberados</th><th class="p-3 w-32">Taxa</th></tr>
+                      <tr><th class="p-3">Agência</th><th class="p-3 text-center">Total</th><th class="p-3 text-center">Liberados</th><th class="p-3 text-right">Lib. Majoração</th><th class="p-3 text-right">Lib. Implantação</th><th class="p-3 w-28">Taxa</th></tr>
                     </thead>
                     <tbody id="ret-por-coop" class="divide-y divide-gray-100"></tbody>
                   </table>
@@ -1127,6 +1153,7 @@
       let limConta = 0, limCartao = 0;
       let novoConta = 0, novoCartao = 0, aprovConta = 0, aprovCartao = 0;
       let aguardando = 0;
+      let libImpl = 0, libMajor = 0;
 
       assoc.forEach(a => {
         const cart = ehCartao(a);
@@ -1137,6 +1164,12 @@
           if (cart) { novoCartao += nv; aprovCartao++; } else { novoConta += nv; aprovConta++; }
         }
         if (String(a.status).toUpperCase() === 'AGUARDANDO') aguardando++;
+
+        // Limites efetivamente liberados pelo robô (no escopo do usuário)
+        if (a.retornoClasse === 'Liberado' && nv > 0) {
+          if (String(a.operacao || '').toLowerCase().indexOf('major') !== -1) libMajor += nv;
+          else libImpl += nv;
+        }
       });
 
       document.getElementById('kpi-limite-conta').innerText = formatCurrency(limConta);
@@ -1147,6 +1180,17 @@
       document.getElementById('kpi-aprov-cartao-count').innerText = aprovCartao;
       document.getElementById('kpi-aguardando-count').innerText = aguardando;
       document.getElementById('kpi-associados-count').innerText = assoc.length;
+
+      // Card de limites liberados pelo robô (aparece quando há retornos importados)
+      const cardLib = document.getElementById('card-liberados');
+      const temRet = !!(appData.retornoResumo && appData.retornoResumo.temDados);
+      if (cardLib) {
+        cardLib.classList.toggle('hidden', !temRet);
+        cardLib.classList.toggle('flex', temRet);
+        document.getElementById('kpi-lib-total').innerText = formatCurrency(libImpl + libMajor);
+        document.getElementById('kpi-lib-impl').innerText = formatCurrency(libImpl);
+        document.getElementById('kpi-lib-major').innerText = formatCurrency(libMajor);
+      }
 
       // Distribuição por status
       const cont = {};
@@ -1675,10 +1719,12 @@
         "</div>";
       }).join('') || "<p class='text-sm text-gray-400'>Sem dados.</p>";
 
-      // Por cooperativa
+      // Por agência
       const coops = Object.keys(r.porCoop || {}).map(function(c) {
         const d = r.porCoop[c];
-        return { coop: c, total: d.total, lib: d.liberados, taxa: d.total ? Math.round(d.liberados / d.total * 100) : 0 };
+        return { coop: c, total: d.total, lib: d.liberados,
+                 valMaj: d.valMajoracao || 0, valImp: d.valImplantacao || 0,
+                 taxa: d.total ? Math.round(d.liberados / d.total * 100) : 0 };
       }).sort(function(a, b) { return a.taxa - b.taxa; });
       document.getElementById('ret-por-coop').innerHTML = coops.map(function(c) {
         const cor = c.taxa >= 80 ? 'bg-green-600' : (c.taxa >= 50 ? 'bg-secondary' : 'bg-red-500');
@@ -1686,9 +1732,11 @@
           "<td class='p-3 font-medium text-primary'>" + c.coop + "</td>" +
           "<td class='p-3 text-center'>" + c.total + "</td>" +
           "<td class='p-3 text-center text-green-700 font-bold'>" + c.lib + "</td>" +
+          "<td class='p-3 text-right text-green-700'>" + formatCurrency(c.valMaj) + "</td>" +
+          "<td class='p-3 text-right text-green-700'>" + formatCurrency(c.valImp) + "</td>" +
           "<td class='p-3'><div class='flex items-center gap-2'><div class='flex-1 bg-gray-100 rounded-full h-2'><div class='" + cor + " h-2 rounded-full' style='width:" + c.taxa + "%'></div></div><span class='text-[11px] text-gray-500 w-8 text-right'>" + c.taxa + "%</span></div></td>" +
         "</tr>";
-      }).join('') || "<tr><td colspan='4' class='p-4 text-center text-xs text-gray-400'>Sem dados.</td></tr>";
+      }).join('') || "<tr><td colspan='6' class='p-4 text-center text-xs text-gray-400'>Sem dados.</td></tr>";
     }
 
     // ---- Bloqueio de edição de limites ----
@@ -1742,7 +1790,10 @@
 
       const total = r.total || 0;
       const pctLib = total ? Math.round((r.liberados || 0) / total * 100) : 0;
-      document.getElementById('rel-retorno-taxa').innerText = 'Liberação: ' + pctLib + '% · ' + total + ' processados';
+      const valTotalLib = (r.valLibMajoracao || 0) + (r.valLibImplantacao || 0);
+      document.getElementById('rel-retorno-taxa').innerText =
+        'Liberação: ' + pctLib + '% · ' + total + ' processados · ' + formatCurrency(valTotalLib) + ' liberados' +
+        ' (Majoração ' + formatCurrency(r.valLibMajoracao || 0) + ' · Implantação ' + formatCurrency(r.valLibImplantacao || 0) + ')';
 
       const motivos = Object.keys(r.porMotivo || {}).map(function(m) {
         return { motivo: m, total: r.porMotivo[m].total, classe: r.porMotivo[m].classe };
@@ -1755,10 +1806,18 @@
       }).join('');
 
       const coops = Object.keys(r.porCoop || {}).map(function(c) {
-        const d = r.porCoop[c]; return { coop: c, total: d.total, lib: d.liberados, taxa: d.total ? Math.round(d.liberados / d.total * 100) : 0 };
+        const d = r.porCoop[c];
+        return { coop: c, total: d.total, lib: d.liberados,
+                 valMaj: d.valMajoracao || 0, valImp: d.valImplantacao || 0,
+                 taxa: d.total ? Math.round(d.liberados / d.total * 100) : 0 };
       }).sort(function(a, b) { return a.taxa - b.taxa; });
       document.getElementById('rel-retorno-coop').innerHTML = coops.map(function(c) {
-        return "<tr class='hover:bg-gray-50'><td class='p-2.5 font-medium text-primary'>" + c.coop + "</td><td class='p-2.5 text-center'>" + c.total + "</td><td class='p-2.5 text-center text-green-700 font-bold'>" + c.lib + "</td><td class='p-2.5 text-center'>" + c.taxa + "%</td></tr>";
+        return "<tr class='hover:bg-gray-50'><td class='p-2.5 font-medium text-primary'>" + c.coop + "</td>" +
+          "<td class='p-2.5 text-center'>" + c.total + "</td>" +
+          "<td class='p-2.5 text-center text-green-700 font-bold'>" + c.lib + "</td>" +
+          "<td class='p-2.5 text-right text-green-700'>" + formatCurrency(c.valMaj) + "</td>" +
+          "<td class='p-2.5 text-right text-green-700'>" + formatCurrency(c.valImp) + "</td>" +
+          "<td class='p-2.5 text-center'>" + c.taxa + "%</td></tr>";
       }).join('');
     }
 

@@ -622,7 +622,11 @@ function normalizarConta(v) { return String(v || "").replace(/\D/g, ""); }
 // Lê a aba Retornos, anexa o resultado do robô em cada associado (por CONTA)
 // e devolve um resumo agregado (por motivo e por cooperativa).
 function carregarRetornosEVincular(ss, associados) {
-  var resumo = { total: 0, liberados: 0, pendencias: 0, porMotivo: {}, porCoop: {}, temDados: false };
+  var resumo = {
+    total: 0, liberados: 0, pendencias: 0,
+    valLibMajoracao: 0, valLibImplantacao: 0,
+    porMotivo: {}, porCoop: {}, temDados: false
+  };
   var shRet = ss.getSheetByName("Retornos");
   if (!shRet) return resumo;
   var dados = shRet.getDataRange().getValues();
@@ -650,13 +654,24 @@ function carregarRetornosEVincular(ss, associados) {
     var classe = classificarRetorno(motivo + " " + libTxt);
     var coop = String((cCoop !== undefined ? r[cCoop] : "") || "").trim() || "(sem agência)";
 
+    var ehMajoracao = oper.indexOf("major") !== -1;
+
     resumo.total++;
-    if (classe === "Liberado") resumo.liberados++; else resumo.pendencias++;
+    if (classe === "Liberado") {
+      resumo.liberados++;
+      if (ehMajoracao) resumo.valLibMajoracao += limite; else resumo.valLibImplantacao += limite;
+    } else {
+      resumo.pendencias++;
+    }
     if (!resumo.porMotivo[motivo]) resumo.porMotivo[motivo] = { total: 0, classe: classe };
     resumo.porMotivo[motivo].total++;
-    if (!resumo.porCoop[coop]) resumo.porCoop[coop] = { total: 0, liberados: 0 };
+    if (!resumo.porCoop[coop]) resumo.porCoop[coop] = { total: 0, liberados: 0, valMajoracao: 0, valImplantacao: 0 };
     resumo.porCoop[coop].total++;
-    if (classe === "Liberado") resumo.porCoop[coop].liberados++;
+    if (classe === "Liberado") {
+      resumo.porCoop[coop].liberados++;
+      if (ehMajoracao) resumo.porCoop[coop].valMajoracao += limite;
+      else resumo.porCoop[coop].valImplantacao += limite;
+    }
 
     porChave[conta + "|" + limite + "|" + prod + "|" + oper] = { motivo: motivo, classe: classe };
   }
