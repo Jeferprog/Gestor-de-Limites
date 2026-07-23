@@ -35,10 +35,12 @@ var COLUNAS_ASSOCIADOS = [
   "Limite SCR", "Saldo Devedor"
 ];
 
-// Colunas da aba Retornos (resultado do robô/RPA)
+// Colunas da aba Retornos (resultado do robô/RPA). Produto/Operação são
+// definidos pela SEDE no momento da importação (o arquivo do robô não os traz).
 var COLUNAS_RETORNOS = [
   "ID", "Data Hora Registro", "Conta", "Limite", "Cooperativa", "Resultado",
-  "Retorno RPA", "Data Hora Resultado", "Alçada", "Contrato Gerado", "Liberado?"
+  "Retorno RPA", "Data Hora Resultado", "Alçada", "Contrato Gerado", "Liberado?",
+  "Produto", "Operação"
 ];
 
 // Inicializa a planilha com as abas e cabeçalhos necessários, caso não existam
@@ -620,7 +622,11 @@ function normalizarConta(v) { return String(v || "").replace(/\D/g, ""); }
 // Lê a aba Retornos, anexa o resultado do robô em cada associado (por CONTA)
 // e devolve um resumo agregado (por motivo e por cooperativa).
 function carregarRetornosEVincular(ss, associados) {
-  var resumo = { total: 0, liberados: 0, pendencias: 0, porMotivo: {}, porCoop: {}, temDados: false };
+  var resumo = {
+    total: 0, liberados: 0, pendencias: 0,
+    valLibMajoracao: 0, valLibImplantacao: 0,
+    porMotivo: {}, porCoop: {}, temDados: false
+  };
   var shRet = ss.getSheetByName("Retornos");
   if (!shRet) return resumo;
   var dados = shRet.getDataRange().getValues();
@@ -628,35 +634,55 @@ function carregarRetornosEVincular(ss, associados) {
 
   var m = {};
   for (var c = 0; c < dados[0].length; c++) m[normalizarCol(dados[0][c])] = c;
-  var cConta = m["conta"], cResultado = (m["retorno rpa"] !== undefined ? m["retorno rpa"] : m["resultado"]);
+  var cConta = m["conta"], cLimite = m["limite"];
+  var cResultado = (m["retorno rpa"] !== undefined ? m["retorno rpa"] : m["resultado"]);
   var cLiberado = (m["liberado?"] !== undefined ? m["liberado?"] : m["liberado"]);
-  var cCoop = m["cooperativa"], cData = m["data hora resultado"];
+  var cCoop = m["cooperativa"], cProd = m["produto"], cOper = m["operacao"];
 
-  var porConta = {}; // conta normalizada -> {motivo, classe}
+  // Chave CONTA+LIMITE+PRODUTO+OPERAÇÃO — diferencia até quando Conta e Cartão
+  // têm o mesmo valor de limite.
+  var porChave = {};
   for (var i = 1; i < dados.length; i++) {
     var r = dados[i];
     var conta = normalizarConta(cConta !== undefined ? r[cConta] : "");
     if (!conta) continue;
+    var limite = Math.round(Number(cLimite !== undefined ? r[cLimite] : 0) || 0);
+    var prod = normalizarCol(cProd !== undefined ? r[cProd] : "");
+    var oper = normalizarCol(cOper !== undefined ? r[cOper] : "");
     var motivo = String((cResultado !== undefined ? r[cResultado] : "") || "").replace(/\.$/, "").trim() || "(sem retorno)";
     var libTxt = String((cLiberado !== undefined ? r[cLiberado] : "") || "");
     var classe = classificarRetorno(motivo + " " + libTxt);
-    var coop = String((cCoop !== undefined ? r[cCoop] : "") || "").trim() || "(sem cooperativa)";
+    var coop = String((cCoop !== undefined ? r[cCoop] : "") || "").trim() || "(sem agência)";
+
+    var ehMajoracao = oper.indexOf("major") !== -1;
 
     resumo.total++;
-    if (classe === "Liberado") resumo.liberados++; else resumo.pendencias++;
+    if (classe === "Liberado") {
+      resumo.liberados++;
+      if (ehMajoracao) resumo.valLibMajoracao += limite; else resumo.valLibImplantacao += limite;
+    } else {
+      resumo.pendencias++;
+    }
     if (!resumo.porMotivo[motivo]) resumo.porMotivo[motivo] = { total: 0, classe: classe };
     resumo.porMotivo[motivo].total++;
-    if (!resumo.porCoop[coop]) resumo.porCoop[coop] = { total: 0, liberados: 0 };
+    if (!resumo.porCoop[coop]) resumo.porCoop[coop] = { total: 0, liberados: 0, valMajoracao: 0, valImplantacao: 0 };
     resumo.porCoop[coop].total++;
-    if (classe === "Liberado") resumo.porCoop[coop].liberados++;
+    if (classe === "Liberado") {
+      resumo.porCoop[coop].liberados++;
+      if (ehMajoracao) resumo.porCoop[coop].valMajoracao += limite;
+      else resumo.porCoop[coop].valImplantacao += limite;
+    }
 
-    porConta[conta] = { motivo: motivo, classe: classe };
+    porChave[conta + "|" + limite + "|" + prod + "|" + oper] = { motivo: motivo, classe: classe };
   }
   resumo.temDados = resumo.total > 0;
 
-  // Vincula ao associado pela conta
+  // Vincula ao registro exato (conta + limite confirmado + produto + operação).
   associados.forEach(function(a) {
-    var ret = porConta[normalizarConta(a.conta)];
+    var lim = Math.round(Number(a.novoLimiteConfirmado) || 0);
+    var prod = normalizarCol(a.produto);
+    var oper = normalizarCol(a.operacao);
+    var ret = porChave[normalizarConta(a.conta) + "|" + lim + "|" + prod + "|" + oper];
     a.retornoRobo = ret ? ret.motivo : "";
     a.retornoClasse = ret ? ret.classe : "";
   });
@@ -675,8 +701,9 @@ function classificarRetorno(texto) {
 }
 
 // Importa (em lotes) o arquivo de retorno do robô. Restrito à SEDE.
-// primeiroLote=true limpa os dados anteriores (nova rodada de retorno).
-function importarRetornoRobo(nomeArquivo, conteudoTexto, primeiroLote) {
+// tipoLista informa o segmento (Majoração/Implantação Conta/Cartão) do arquivo.
+// primeiroLote=true substitui os retornos ANTERIORES DAQUELE SEGMENTO.
+function importarRetornoRobo(nomeArquivo, conteudoTexto, primeiroLote, tipoLista) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     inicializarPlanilha();
@@ -685,6 +712,10 @@ function importarRetornoRobo(nomeArquivo, conteudoTexto, primeiroLote) {
     if (!(u.isSede || u.semColaboradores || u.semIdentificacao)) {
       return { success: false, error: "Apenas a SEDE pode importar o retorno do robô." };
     }
+
+    var tipoNorm = normalizarCol(tipoLista);
+    var produto = (tipoNorm.indexOf("cartao") !== -1) ? "Cartão" : "Conta";
+    var operacao = (tipoNorm.indexOf("majoracao") !== -1) ? "Majoração" : "Implantação";
 
     conteudoTexto = String(conteudoTexto).replace(/^﻿/, '');
     var linhas = conteudoTexto.split(/\r?\n/);
@@ -716,10 +747,25 @@ function importarRetornoRobo(nomeArquivo, conteudoTexto, primeiroLote) {
       return { success: false, error: "Layout do retorno incompatível (falta CONTA e/ou RESULTADO)." };
     }
 
+    var mapaRet = garantirColunasRetornos();
     var shRet = ss.getSheetByName("Retornos");
+    var totalColsRet = shRet.getLastColumn();
+
+    // No primeiro lote deste import, remove apenas os retornos do MESMO segmento
+    // (mantém os demais produtos/operações já importados).
     if (primeiroLote) {
       var lr = shRet.getLastRow();
-      if (lr > 1) shRet.getRange(2, 1, lr - 1, shRet.getLastColumn()).clearContent();
+      if (lr > 1) {
+        var todos = shRet.getRange(2, 1, lr - 1, totalColsRet).getValues();
+        var cP = mapaRet["produto"], cO = mapaRet["operacao"];
+        var manter = todos.filter(function(r) {
+          var p = normalizarCol(cP !== undefined ? r[cP] : "");
+          var o = normalizarCol(cO !== undefined ? r[cO] : "");
+          return !(p === normalizarCol(produto) && o === normalizarCol(operacao));
+        });
+        shRet.getRange(2, 1, lr - 1, totalColsRet).clearContent();
+        if (manter.length > 0) shRet.getRange(2, 1, manter.length, totalColsRet).setValues(manter);
+      }
     }
 
     var pega = function(cols, j) { return (j === -1) ? "" : (cols[j] || ""); };
@@ -735,7 +781,8 @@ function importarRetornoRobo(nomeArquivo, conteudoTexto, primeiroLote) {
         pega(cols, idx.id), pega(cols, idx.dataReg), conta,
         parseDinheiro(pega(cols, idx.limite)), pega(cols, idx.coop),
         pega(cols, idx.resultado), pega(cols, idx.retornoRpa), pega(cols, idx.dataRes),
-        pega(cols, idx.alcada), pega(cols, idx.contrato), pega(cols, idx.liberado)
+        pega(cols, idx.alcada), pega(cols, idx.contrato), pega(cols, idx.liberado),
+        produto, operacao
       ]);
     }
 
@@ -807,6 +854,24 @@ function garantirColunasAssociados() {
   var header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
   var existentes = header.map(function(h) { return normalizarCol(h); });
   COLUNAS_ASSOCIADOS.forEach(function(col) {
+    if (existentes.indexOf(normalizarCol(col)) === -1) {
+      lastCol++;
+      sh.getRange(1, lastCol).setValue(col);
+      existentes.push(normalizarCol(col));
+    }
+  });
+  return mapaColunas(sh);
+}
+
+// Garante que a aba Retornos tenha todas as colunas (incl. Produto/Operação)
+function garantirColunasRetornos() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Retornos");
+  if (!sh) return {};
+  var lastCol = Math.max(sh.getLastColumn(), 1);
+  var header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var existentes = header.map(function(h) { return normalizarCol(h); });
+  COLUNAS_RETORNOS.forEach(function(col) {
     if (existentes.indexOf(normalizarCol(col)) === -1) {
       lastCol++;
       sh.getRange(1, lastCol).setValue(col);
