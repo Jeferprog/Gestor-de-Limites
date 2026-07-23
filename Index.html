@@ -601,10 +601,17 @@
           </div>
 
           <!-- Importar retorno -->
-          <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
+          <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div class="flex-1">
               <h4 class="font-bold text-primary">Importar arquivo de retorno</h4>
-              <p class="text-xs text-gray-500 mt-1">Substitui os retornos anteriores. Aceita .xls, .xlsx ou .csv.</p>
+              <p class="text-xs text-gray-500 mt-1 mb-3">Selecione o tipo do arquivo — substitui os retornos anteriores <b>desse mesmo tipo</b>. Aceita .xls, .xlsx ou .csv.</p>
+              <label class="text-[11px] text-gray-500 uppercase font-bold block mb-1">Tipo do retorno</label>
+              <select id="ret-tipo" class="w-full md:max-w-xs text-sm border-gray-300 rounded py-2 bg-white">
+                <option value="Implantação Conta">Implantação Conta (Cheque Especial)</option>
+                <option value="Majoração Conta">Majoração Conta (Cheque Especial)</option>
+                <option value="Implantação Cartão">Implantação Cartão</option>
+                <option value="Majoração Cartão">Majoração Cartão</option>
+              </select>
             </div>
             <input type="file" id="ret-file-input" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" class="hidden" onchange="handleRetornoSelecionado(event)"/>
             <button onclick="document.getElementById('ret-file-input').click()" class="bg-secondary text-white font-bold py-2.5 px-5 rounded-lg hover:brightness-105 flex items-center gap-2 shrink-0">
@@ -1771,9 +1778,10 @@
       const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
       if (!isGAS) { alert('Importação disponível apenas no ambiente Google Sheets.'); return; }
 
+      const tipo = document.getElementById('ret-tipo').value;
       mostrarRetStatus('Lendo "' + file.name + '"...');
       lerRetornoComoTabela(file).then(function(conteudo) {
-        return processarRetornoEmLotes(file.name, conteudo);
+        return processarRetornoEmLotes(file.name, conteudo, tipo);
       }).catch(function(err) {
         esconderRetStatus();
         alert('Não foi possível ler o arquivo: ' + err);
@@ -1813,7 +1821,7 @@
       });
     }
 
-    async function processarRetornoEmLotes(nomeArquivo, conteudo) {
+    async function processarRetornoEmLotes(nomeArquivo, conteudo, tipo) {
       conteudo = String(conteudo).replace(/^﻿/, '');
       const linhas = conteudo.split(/\r?\n/);
       const header = linhas[0] || '';
@@ -1826,9 +1834,9 @@
       let totalReg = 0;
       try {
         for (let i = 0; i < totalLotes; i++) {
-          mostrarRetStatus('Processando lote ' + (i + 1) + '/' + totalLotes + '...');
+          mostrarRetStatus('Processando "' + tipo + '" — lote ' + (i + 1) + '/' + totalLotes + '...');
           const lote = header + '\n' + dados.slice(i * CHUNK, (i + 1) * CHUNK).join('\n');
-          const res = await runGAS('importarRetornoRobo', nomeArquivo, lote, i === 0);
+          const res = await runGAS('importarRetornoRobo', nomeArquivo, lote, i === 0, tipo);
           if (!res || !res.success) {
             esconderRetStatus();
             alert('Falha ao importar o retorno: ' + ((res && res.error) || 'erro'));
@@ -1837,7 +1845,7 @@
           totalReg += res.registros || 0;
         }
         esconderRetStatus();
-        alert('Retorno importado: ' + totalReg + ' registro(s).');
+        alert('Retorno de "' + tipo + '" importado: ' + totalReg + ' registro(s).');
         loadAllData();
       } catch (err) {
         esconderRetStatus();
