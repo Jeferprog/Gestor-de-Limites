@@ -628,19 +628,23 @@ function carregarRetornosEVincular(ss, associados) {
 
   var m = {};
   for (var c = 0; c < dados[0].length; c++) m[normalizarCol(dados[0][c])] = c;
-  var cConta = m["conta"], cResultado = (m["retorno rpa"] !== undefined ? m["retorno rpa"] : m["resultado"]);
+  var cConta = m["conta"], cLimite = m["limite"];
+  var cResultado = (m["retorno rpa"] !== undefined ? m["retorno rpa"] : m["resultado"]);
   var cLiberado = (m["liberado?"] !== undefined ? m["liberado?"] : m["liberado"]);
-  var cCoop = m["cooperativa"], cData = m["data hora resultado"];
+  var cCoop = m["cooperativa"];
 
-  var porConta = {}; // conta normalizada -> {motivo, classe}
+  // Chave CONTA+LIMITE para segmentar o retorno ao registro exato (produto/operação),
+  // já que o mesmo cooperado pode ter vários registros com a mesma conta.
+  var porChave = {};
   for (var i = 1; i < dados.length; i++) {
     var r = dados[i];
     var conta = normalizarConta(cConta !== undefined ? r[cConta] : "");
     if (!conta) continue;
+    var limite = Math.round(Number(cLimite !== undefined ? r[cLimite] : 0) || 0);
     var motivo = String((cResultado !== undefined ? r[cResultado] : "") || "").replace(/\.$/, "").trim() || "(sem retorno)";
     var libTxt = String((cLiberado !== undefined ? r[cLiberado] : "") || "");
     var classe = classificarRetorno(motivo + " " + libTxt);
-    var coop = String((cCoop !== undefined ? r[cCoop] : "") || "").trim() || "(sem cooperativa)";
+    var coop = String((cCoop !== undefined ? r[cCoop] : "") || "").trim() || "(sem agência)";
 
     resumo.total++;
     if (classe === "Liberado") resumo.liberados++; else resumo.pendencias++;
@@ -650,13 +654,15 @@ function carregarRetornosEVincular(ss, associados) {
     resumo.porCoop[coop].total++;
     if (classe === "Liberado") resumo.porCoop[coop].liberados++;
 
-    porConta[conta] = { motivo: motivo, classe: classe };
+    porChave[conta + "|" + limite] = { motivo: motivo, classe: classe };
   }
   resumo.temDados = resumo.total > 0;
 
-  // Vincula ao associado pela conta
+  // Vincula ao registro exato (conta + limite confirmado). Assim o retorno só
+  // aparece no caso que efetivamente retornou (ex.: Implantação Conta).
   associados.forEach(function(a) {
-    var ret = porConta[normalizarConta(a.conta)];
+    var lim = Math.round(Number(a.novoLimiteConfirmado) || 0);
+    var ret = porChave[normalizarConta(a.conta) + "|" + lim];
     a.retornoRobo = ret ? ret.motivo : "";
     a.retornoClasse = ret ? ret.classe : "";
   });
