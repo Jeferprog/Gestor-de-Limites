@@ -323,9 +323,14 @@
             <!-- Left Side: Associates List -->
             <div class="w-[65%] flex flex-col border-r border-outline-variant h-full">
               <div class="p-4 border-b border-outline-variant bg-gray-50 space-y-2">
-                <div class="flex justify-between items-center">
+                <div class="flex justify-between items-center gap-2">
                   <h3 class="font-bold text-primary text-sm">Associados para Análise</h3>
-                  <span class="text-xs text-gray-500" id="associates-count">0</span>
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs text-gray-500" id="associates-count">0</span>
+                    <button onclick="gerarRelatorioGestaoXLS()" title="Exportar (respeita os filtros)" class="flex items-center gap-1 text-xs font-bold text-primary border border-primary/30 rounded px-2 py-1 hover:bg-primary/5">
+                      <span class="material-symbols-outlined text-sm">download</span> XLS
+                    </button>
+                  </div>
                 </div>
                 <div class="relative">
                   <span class="material-symbols-outlined text-gray-400 text-base absolute left-2 top-1/2 -translate-y-1/2">search</span>
@@ -950,13 +955,10 @@
 
     // Renderiza a lista de associados: aplica filtros + busca, limita a exibição
     // e faz UM único write no DOM (rápido mesmo com milhares de registros).
-    function renderListaAssociados() {
-      const temRetorno = !!(appData.retornoResumo && appData.retornoResumo.temDados);
-      const legenda = document.getElementById('legenda-retorno');
-      if (legenda) { legenda.classList.toggle('hidden', !temRetorno); legenda.classList.toggle('flex', temRetorno); }
-
+    // Aplica os filtros ativos da Gestão de Limites (usado pela lista e pela exportação)
+    function filtrarAssociadosAtuais() {
       const busca = filtroBusca.trim().toLowerCase();
-      const listaCompleta = (appData.associados || []).filter(a =>
+      return (appData.associados || []).filter(a =>
         (!filtroCarteira || (a.microSegmento || '') === filtroCarteira) &&
         (!filtroProduto || (a.produto || 'Conta') === filtroProduto) &&
         (!filtroOperacao || (a.operacao || '') === filtroOperacao) &&
@@ -965,6 +967,14 @@
         (!busca || String(a.nome || '').toLowerCase().indexOf(busca) !== -1 ||
                    String(a.cpfCnpj || '').toLowerCase().indexOf(busca) !== -1)
       );
+    }
+
+    function renderListaAssociados() {
+      const temRetorno = !!(appData.retornoResumo && appData.retornoResumo.temDados);
+      const legenda = document.getElementById('legenda-retorno');
+      if (legenda) { legenda.classList.toggle('hidden', !temRetorno); legenda.classList.toggle('flex', temRetorno); }
+
+      const listaCompleta = filtrarAssociadosAtuais();
 
       const total = listaCompleta.length;
       const lista = listaCompleta.slice(0, MAX_LISTA);
@@ -1661,6 +1671,34 @@
       XLSX.utils.book_append_sheet(wb, ws, 'Limites');
       const d = new Date();
       const nome = 'relatorio_limites_' + d.getFullYear() +
+        ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2) + '.xlsx';
+      XLSX.writeFile(wb, nome);
+    }
+
+    // Exporta a Gestão de Limites em XLS respeitando os filtros ativos
+    function gerarRelatorioGestaoXLS() {
+      if (typeof XLSX === 'undefined') { alert('Biblioteca de exportação não carregou. Recarregue a página.'); return; }
+      const registros = filtrarAssociadosAtuais();
+      if (registros.length === 0) { alert('Nenhum registro para os filtros selecionados.'); return; }
+
+      const cabecalho = ['Agência', 'Conta', 'Associado', 'Valor do Limite Aprovado', 'Status', 'Retorno do Robô'];
+      const linhas = registros.map(function(a) {
+        const aprovado = String(a.status || '').toUpperCase() === 'APROVADO';
+        const temNovo = a.novoLimiteConfirmado !== null && a.novoLimiteConfirmado !== undefined && a.novoLimiteConfirmado !== '';
+        return [
+          a.agencia || '',
+          a.conta || '',
+          a.nome || '',
+          (aprovado && temNovo) ? (Number(a.novoLimiteConfirmado) || 0) : '',
+          a.status || '',
+          a.retornoRobo || ''
+        ];
+      });
+      const ws = XLSX.utils.aoa_to_sheet([cabecalho].concat(linhas));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Gestão de Limites');
+      const d = new Date();
+      const nome = 'gestao_limites_' + d.getFullYear() +
         ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2) + '.xlsx';
       XLSX.writeFile(wb, nome);
     }
