@@ -74,6 +74,10 @@
           <span class="material-symbols-outlined">download</span>
           <span class="text-sm font-medium">Relatórios</span>
         </button>
+        <button onclick="setTab('retorno-robo')" id="btn-retorno-robo" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
+          <span class="material-symbols-outlined">smart_toy</span>
+          <span class="text-sm font-medium">Retorno do Robô</span>
+        </button>
       </nav>
 
       <div class="mt-auto border-t border-outline-variant pt-4 space-y-1">
@@ -544,6 +548,76 @@
           </div>
         </div>
 
+        <!-- Tab: Retorno do Robô -->
+        <div id="tab-retorno-robo" class="hidden space-y-6">
+          <div class="mb-2">
+            <h2 class="text-2xl font-black text-primary">Retorno do Robô</h2>
+            <p class="text-gray-500 text-sm">Resultado do processamento (RPA) das solicitações enviadas.</p>
+          </div>
+
+          <!-- Importar retorno -->
+          <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h4 class="font-bold text-primary">Importar arquivo de retorno</h4>
+              <p class="text-xs text-gray-500 mt-1">Substitui os retornos anteriores. Aceita .xls, .xlsx ou .csv.</p>
+            </div>
+            <input type="file" id="ret-file-input" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" class="hidden" onchange="handleRetornoSelecionado(event)"/>
+            <button onclick="document.getElementById('ret-file-input').click()" class="bg-secondary text-white font-bold py-2.5 px-5 rounded-lg hover:brightness-105 flex items-center gap-2 shrink-0">
+              <span class="material-symbols-outlined text-base">upload_file</span> Enviar retorno
+            </button>
+          </div>
+          <div id="ret-upload-status" class="hidden items-center gap-3 bg-secondary-container text-on-secondary-container rounded-lg px-4 py-3 text-sm font-bold">
+            <div class="w-5 h-5 border-2 border-on-secondary-container border-t-transparent rounded-full animate-spin"></div>
+            <span id="ret-upload-status-text">Processando...</span>
+          </div>
+
+          <!-- KPIs do retorno -->
+          <div id="ret-vazio" class="bg-white p-8 rounded-lg border border-outline-variant shadow-sm text-center text-sm text-gray-400">
+            Nenhum retorno importado ainda. Envie o arquivo do robô para ver o resultado.
+          </div>
+
+          <div id="ret-painel" class="hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm border-l-4 border-primary">
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Total Processado</span>
+                <div class="text-3xl font-black text-gray-900 mt-1" id="ret-kpi-total">0</div>
+              </div>
+              <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm border-l-4 border-green-600">
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Liberados</span>
+                <div class="text-3xl font-black text-green-700 mt-1" id="ret-kpi-liberados">0</div>
+                <div class="text-xs text-gray-500" id="ret-kpi-liberados-pct">0%</div>
+              </div>
+              <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm border-l-4 border-red-500">
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Com Pendência</span>
+                <div class="text-3xl font-black text-red-600 mt-1" id="ret-kpi-pendencias">0</div>
+                <div class="text-xs text-gray-500" id="ret-kpi-pendencias-pct">0%</div>
+              </div>
+              <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm border-l-4 border-secondary flex flex-col justify-center">
+                <span class="text-[11px] text-gray-500 uppercase font-bold tracking-wider">Taxa de Liberação</span>
+                <div class="w-full bg-gray-100 rounded-full h-3 mt-3"><div id="ret-barra" class="bg-green-600 h-3 rounded-full" style="width:0%"></div></div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col">
+                <div class="p-4 border-b border-outline-variant bg-gray-50"><h4 class="font-bold text-primary">Por Motivo do Retorno</h4></div>
+                <div class="p-6 space-y-3 overflow-y-auto max-h-96" id="ret-por-motivo"></div>
+              </div>
+              <div class="bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col">
+                <div class="p-4 border-b border-outline-variant bg-gray-50"><h4 class="font-bold text-primary">Por Cooperativa</h4></div>
+                <div class="overflow-y-auto max-h-96">
+                  <table class="w-full text-left text-sm">
+                    <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase">
+                      <tr><th class="p-3">Cooperativa</th><th class="p-3 text-center">Total</th><th class="p-3 text-center">Liberados</th><th class="p-3 w-32">Taxa</th></tr>
+                    </thead>
+                    <tbody id="ret-por-coop" class="divide-y divide-gray-100"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </main>
   </div>
@@ -585,8 +659,8 @@
     };
 
     function setTab(tabId) {
-      // Upload de Listas e Relatórios são restritos à SEDE
-      if ((tabId === 'upload-listas' || tabId === 'relatorios') && !podeImportar) {
+      // Upload de Listas, Relatórios e Retorno do Robô são restritos à SEDE
+      if ((tabId === 'upload-listas' || tabId === 'relatorios' || tabId === 'retorno-robo') && !podeImportar) {
         tabId = 'visao-geral';
       }
 
@@ -594,6 +668,7 @@
       document.getElementById('tab-upload-listas').classList.add('hidden');
       document.getElementById('tab-gestao-limites').classList.add('hidden');
       document.getElementById('tab-relatorios').classList.add('hidden');
+      document.getElementById('tab-retorno-robo').classList.add('hidden');
 
       document.getElementById('tab-' + tabId).classList.remove('hidden');
 
@@ -601,11 +676,13 @@
         'visao-geral': 'Visão Geral da Agência',
         'upload-listas': 'Upload de Listas Central',
         'gestao-limites': 'Gestão de Limites de Crédito',
-        'relatorios': 'Relatórios'
+        'relatorios': 'Relatórios',
+        'retorno-robo': 'Retorno do Robô'
       };
       document.getElementById('current-tab-title').innerText = titles[tabId];
 
       if (tabId === 'relatorios') { atualizarContagemRelatorio(); renderRelatorioPaineis(); }
+      if (tabId === 'retorno-robo') renderRetornoRobo();
     }
 
     function loadAllData() {
@@ -686,6 +763,8 @@
       if (btnProto) btnProto.classList.toggle('hidden', !podeImportar);
       const btnRel = document.getElementById('btn-relatorios');
       if (btnRel) btnRel.classList.toggle('hidden', !podeImportar);
+      const btnRobo = document.getElementById('btn-retorno-robo');
+      if (btnRobo) btnRobo.classList.toggle('hidden', !podeImportar);
 
       // Histórico de importações: some para agência; a distribuição ocupa a largura toda
       const cardImp = document.getElementById('card-ultimas-importacoes');
@@ -782,6 +861,7 @@
       renderListaAssociados();
       renderRelatorioPaineis();
       atualizarContagemRelatorio();
+      renderRetornoRobo();
     }
 
     // Renderiza a lista de associados: aplica filtros + busca, limita a exibição
@@ -838,7 +918,7 @@
           }
           return "<tr onclick=\"selectAssociate('" + a.id + "')\" class='cursor-pointer transition " +
               (isSelected ? "bg-orange-50 border-l-4 border-secondary" : "hover:bg-gray-50") + "'>" +
-            "<td class='p-3'><div class='flex flex-col'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + "</span>" + carteira + "</div></td>" +
+            "<td class='p-3'><div class='flex flex-col gap-0.5'><span class='font-bold text-primary'>" + a.nome + "</span><span class='text-[10px] text-gray-500'>CPF: " + a.cpfCnpj + "</span>" + carteira + (a.retornoRobo ? "<div class='mt-0.5'>" + retornoBadge(a) + "</div>" : "") + "</div></td>" +
             "<td class='p-3 text-right'>" + tags + "<div class='font-semibold'>" + formatCurrency(a.limiteAtual) + "</div></td>" +
             "<td class='p-3 text-right'>" + sugestaoCell + "</td>" +
             "<td class='p-3 text-center'>" + statusBadge(a.status) + "</td>" +
@@ -1467,6 +1547,147 @@
       const nome = 'relatorio_limites_' + d.getFullYear() +
         ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2) + '.xlsx';
       XLSX.writeFile(wb, nome);
+    }
+
+    // ---- Retorno do Robô ----
+    // Badge do resultado do robô para um associado
+    function retornoBadge(assoc) {
+      if (!assoc || !assoc.retornoRobo) return "";
+      const lib = String(assoc.retornoClasse || '').toLowerCase().indexOf('liber') !== -1;
+      const cls = lib ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200';
+      const icone = lib ? 'smart_toy' : 'report';
+      return "<span class='inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold " + cls + "' title='Retorno do robô'>" +
+             "<span class='material-symbols-outlined' style='font-size:12px'>" + icone + "</span>" + assoc.retornoRobo + "</span>";
+    }
+
+    // Painel de retorno do robô (a partir de appData.retornoResumo)
+    function renderRetornoRobo() {
+      const r = appData.retornoResumo;
+      const vazio = document.getElementById('ret-vazio');
+      const painel = document.getElementById('ret-painel');
+      if (!vazio || !painel) return;
+
+      if (!r || !r.temDados) {
+        vazio.classList.remove('hidden');
+        painel.classList.add('hidden');
+        return;
+      }
+      vazio.classList.add('hidden');
+      painel.classList.remove('hidden');
+
+      const total = r.total || 0;
+      const lib = r.liberados || 0;
+      const pend = r.pendencias || 0;
+      const pctLib = total ? Math.round(lib / total * 100) : 0;
+      const pctPend = total ? Math.round(pend / total * 100) : 0;
+
+      document.getElementById('ret-kpi-total').innerText = total;
+      document.getElementById('ret-kpi-liberados').innerText = lib;
+      document.getElementById('ret-kpi-liberados-pct').innerText = pctLib + '%';
+      document.getElementById('ret-kpi-pendencias').innerText = pend;
+      document.getElementById('ret-kpi-pendencias-pct').innerText = pctPend + '%';
+      document.getElementById('ret-barra').style.width = pctLib + '%';
+
+      // Por motivo (ordenado por quantidade)
+      const motivos = Object.keys(r.porMotivo || {}).map(function(m) {
+        return { motivo: m, total: r.porMotivo[m].total, classe: r.porMotivo[m].classe };
+      }).sort(function(a, b) { return b.total - a.total; });
+      document.getElementById('ret-por-motivo').innerHTML = motivos.map(function(m) {
+        const pct = total ? Math.round(m.total / total * 100) : 0;
+        const lib = String(m.classe).toLowerCase().indexOf('liber') !== -1;
+        const cor = lib ? 'bg-green-600' : 'bg-red-500';
+        return "<div>" +
+          "<div class='flex justify-between text-xs mb-1'><span class='font-bold text-gray-700'>" + m.motivo + "</span>" +
+          "<span class='text-gray-500'>" + m.total + " (" + pct + "%)</span></div>" +
+          "<div class='w-full bg-gray-100 rounded-full h-2.5'><div class='" + cor + " h-2.5 rounded-full' style='width:" + pct + "%'></div></div>" +
+        "</div>";
+      }).join('') || "<p class='text-sm text-gray-400'>Sem dados.</p>";
+
+      // Por cooperativa
+      const coops = Object.keys(r.porCoop || {}).map(function(c) {
+        const d = r.porCoop[c];
+        return { coop: c, total: d.total, lib: d.liberados, taxa: d.total ? Math.round(d.liberados / d.total * 100) : 0 };
+      }).sort(function(a, b) { return a.taxa - b.taxa; });
+      document.getElementById('ret-por-coop').innerHTML = coops.map(function(c) {
+        const cor = c.taxa >= 80 ? 'bg-green-600' : (c.taxa >= 50 ? 'bg-secondary' : 'bg-red-500');
+        return "<tr class='hover:bg-gray-50'>" +
+          "<td class='p-3 font-medium text-primary'>" + c.coop + "</td>" +
+          "<td class='p-3 text-center'>" + c.total + "</td>" +
+          "<td class='p-3 text-center text-green-700 font-bold'>" + c.lib + "</td>" +
+          "<td class='p-3'><div class='flex items-center gap-2'><div class='flex-1 bg-gray-100 rounded-full h-2'><div class='" + cor + " h-2 rounded-full' style='width:" + c.taxa + "%'></div></div><span class='text-[11px] text-gray-500 w-8 text-right'>" + c.taxa + "%</span></div></td>" +
+        "</tr>";
+      }).join('') || "<tr><td colspan='4' class='p-4 text-center text-xs text-gray-400'>Sem dados.</td></tr>";
+    }
+
+    // Envolve google.script.run numa Promise (para envio sequencial em lotes)
+    function runGAS(fn) {
+      const args = Array.prototype.slice.call(arguments, 1);
+      return new Promise(function(resolve, reject) {
+        const runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+        runner[fn].apply(runner, args);
+      });
+    }
+
+    // Importa o arquivo de retorno do robô (em lotes, para arquivos grandes)
+    function handleRetornoSelecionado(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
+      if (!isGAS) { alert('Importação disponível apenas no ambiente Google Sheets.'); return; }
+
+      const ehExcel = /\.(xlsx|xls|xlsm)$/i.test(file.name);
+      const leitura = ehExcel ? lerExcelComoCsv(file) : readFileSmart(file);
+
+      mostrarRetStatus('Lendo "' + file.name + '"...');
+      leitura.then(function(conteudo) {
+        return processarRetornoEmLotes(file.name, conteudo);
+      }).catch(function(err) {
+        esconderRetStatus();
+        alert('Não foi possível ler o arquivo: ' + err);
+      });
+      event.target.value = '';
+    }
+
+    async function processarRetornoEmLotes(nomeArquivo, conteudo) {
+      conteudo = String(conteudo).replace(/^﻿/, '');
+      const linhas = conteudo.split(/\r?\n/);
+      const header = linhas[0] || '';
+      const dados = [];
+      for (let i = 1; i < linhas.length; i++) { if (linhas[i].trim() !== '') dados.push(linhas[i]); }
+      if (!header.trim()) { esconderRetStatus(); alert('Arquivo vazio.'); return; }
+
+      const CHUNK = 800;
+      const totalLotes = Math.max(1, Math.ceil(dados.length / CHUNK));
+      let totalReg = 0;
+      try {
+        for (let i = 0; i < totalLotes; i++) {
+          mostrarRetStatus('Processando lote ' + (i + 1) + '/' + totalLotes + '...');
+          const lote = header + '\n' + dados.slice(i * CHUNK, (i + 1) * CHUNK).join('\n');
+          const res = await runGAS('importarRetornoRobo', nomeArquivo, lote, i === 0);
+          if (!res || !res.success) {
+            esconderRetStatus();
+            alert('Falha ao importar o retorno: ' + ((res && res.error) || 'erro'));
+            return;
+          }
+          totalReg += res.registros || 0;
+        }
+        esconderRetStatus();
+        alert('Retorno importado: ' + totalReg + ' registro(s).');
+        loadAllData();
+      } catch (err) {
+        esconderRetStatus();
+        alert('Falha de comunicação: ' + err);
+      }
+    }
+
+    function mostrarRetStatus(txt) {
+      const bar = document.getElementById('ret-upload-status');
+      document.getElementById('ret-upload-status-text').innerText = txt;
+      bar.classList.remove('hidden'); bar.classList.add('flex');
+    }
+    function esconderRetStatus() {
+      const bar = document.getElementById('ret-upload-status');
+      bar.classList.add('hidden'); bar.classList.remove('flex');
     }
 
     function openNewProtocolModal() { document.getElementById('new-protocol-modal').classList.remove('hidden'); }
