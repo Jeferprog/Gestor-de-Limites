@@ -571,6 +571,52 @@
             </div>
           </div>
 
+          <!-- Comparativo: Atual x Sugerido x Aprovado x Liberado (Cooperativa) -->
+          <div class="bg-white rounded-lg border border-outline-variant shadow-sm">
+            <div class="p-4 border-b border-outline-variant bg-gray-50 flex justify-between items-center">
+              <h4 class="font-bold text-primary">Comparativo de Limites — Cooperativa</h4>
+              <span class="text-[10px] text-gray-500 uppercase font-bold">Atual · Sugerido · Aprovado · Liberado</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-primary text-white text-[11px] uppercase">
+                  <tr>
+                    <th class="p-3">Tipo</th>
+                    <th class="p-3 text-center">Casos</th>
+                    <th class="p-3 text-right">Limite Atual</th>
+                    <th class="p-3 text-right">Sugerido (Motor)</th>
+                    <th class="p-3 text-right">Aprovado</th>
+                    <th class="p-3 text-right">Liberado (Robô)</th>
+                  </tr>
+                </thead>
+                <tbody id="rel-comp-coop" class="divide-y divide-gray-100"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Comparativo por agência -->
+          <div class="bg-white rounded-lg border border-outline-variant shadow-sm flex flex-col">
+            <div class="p-4 border-b border-outline-variant bg-gray-50 flex justify-between items-center">
+              <h4 class="font-bold text-primary">Comparativo de Limites — por Agência</h4>
+              <span class="text-[10px] text-gray-500 uppercase font-bold">Maior aprovado primeiro</span>
+            </div>
+            <div class="overflow-y-auto max-h-[32rem]">
+              <table class="w-full text-left text-sm">
+                <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase z-10">
+                  <tr>
+                    <th class="p-3">Agência</th>
+                    <th class="p-3 text-center">Casos</th>
+                    <th class="p-3 text-right">Limite Atual</th>
+                    <th class="p-3 text-right">Sugerido</th>
+                    <th class="p-3 text-right">Aprovado</th>
+                    <th class="p-3 text-right">Liberado</th>
+                  </tr>
+                </thead>
+                <tbody id="rel-comp-agencia" class="divide-y divide-gray-100"></tbody>
+              </table>
+            </div>
+          </div>
+
           <!-- Resumo do retorno do robô -->
           <div id="rel-retorno-bloco" class="hidden bg-white rounded-lg border border-outline-variant shadow-sm">
             <div class="p-4 border-b border-outline-variant bg-gray-50 flex justify-between items-center">
@@ -1552,6 +1598,74 @@
       }
 
       renderRelatorioImpacto();
+      renderComparativo();
+    }
+
+    // Comparativo Atual x Sugerido x Aprovado x Liberado (cooperativa e por agência)
+    function renderComparativo() {
+      if (!document.getElementById('rel-comp-coop')) return;
+      const assoc = appData.associados || [];
+
+      const zera = function() { return { casos: 0, atual: 0, sug: 0, aprov: 0, lib: 0 }; };
+      const acumula = function(g, a) {
+        const nv = Number(a.novoLimiteConfirmado) || 0;
+        const aprovado = String(a.status || '').toUpperCase() === 'APROVADO';
+        g.casos++;
+        g.atual += Number(a.limiteAtual) || 0;
+        g.sug += Number(a.sugestaoMotor) || 0;
+        if (aprovado) g.aprov += nv;
+        if (a.retornoClasse === 'Liberado') g.lib += nv;
+      };
+
+      const linha = function(rot, g, negrito) {
+        const cls = negrito ? "font-black bg-gray-50" : "";
+        return "<tr class='" + cls + "'>" +
+          "<td class='p-3 " + (negrito ? "text-primary" : "font-medium") + "'>" + rot + "</td>" +
+          "<td class='p-3 text-center'>" + g.casos + "</td>" +
+          "<td class='p-3 text-right'>" + formatCurrency(g.atual) + "</td>" +
+          "<td class='p-3 text-right text-secondary'>" + formatCurrency(g.sug) + "</td>" +
+          "<td class='p-3 text-right text-primary font-bold'>" + formatCurrency(g.aprov) + "</td>" +
+          "<td class='p-3 text-right text-green-700 font-bold'>" + formatCurrency(g.lib) + "</td>" +
+        "</tr>";
+      };
+
+      // Cooperativa por tipo + total
+      const ordem = [['Conta', 'Majoração'], ['Conta', 'Implantação'], ['Cartão', 'Majoração'], ['Cartão', 'Implantação']];
+      const grupos = {}; const totCoop = zera();
+      ordem.forEach(function(o) { grupos[o[0] + '|' + o[1]] = zera(); });
+      const porAg = {};
+      assoc.forEach(function(a) {
+        const prod = (String(a.produto || 'Conta').toLowerCase().indexOf('cart') !== -1) ? 'Cartão' : 'Conta';
+        const op = (String(a.operacao || '').toLowerCase().indexOf('major') !== -1) ? 'Majoração' : 'Implantação';
+        const key = prod + '|' + op;
+        if (grupos[key]) acumula(grupos[key], a);
+        acumula(totCoop, a);
+        const ag = a.agencia || '(sem agência)';
+        if (!porAg[ag]) porAg[ag] = zera();
+        acumula(porAg[ag], a);
+      });
+      let rowsCoop = ordem.map(function(o) { return linha(o[0] + ' · ' + o[1], grupos[o[0] + '|' + o[1]], false); });
+      rowsCoop.push(linha('TOTAL', totCoop, true));
+      document.getElementById('rel-comp-coop').innerHTML = rowsCoop.join('');
+
+      // Por agência (maior aprovado primeiro)
+      const listaAg = Object.keys(porAg).map(function(ag) { return { ag: ag, g: porAg[ag] }; })
+        .sort(function(x, y) { return y.g.aprov - x.g.aprov; });
+      const tbodyAg = document.getElementById('rel-comp-agencia');
+      if (listaAg.length === 0) {
+        tbodyAg.innerHTML = "<tr><td colspan='6' class='p-6 text-center text-xs text-gray-400'>Sem dados.</td></tr>";
+      } else {
+        tbodyAg.innerHTML = listaAg.map(function(r) {
+          return "<tr class='hover:bg-gray-50'>" +
+            "<td class='p-3 font-medium text-primary'>" + r.ag + "</td>" +
+            "<td class='p-3 text-center'>" + r.g.casos + "</td>" +
+            "<td class='p-3 text-right'>" + formatCurrency(r.g.atual) + "</td>" +
+            "<td class='p-3 text-right text-secondary'>" + formatCurrency(r.g.sug) + "</td>" +
+            "<td class='p-3 text-right text-primary font-bold'>" + formatCurrency(r.g.aprov) + "</td>" +
+            "<td class='p-3 text-right text-green-700 font-bold'>" + formatCurrency(r.g.lib) + "</td>" +
+          "</tr>";
+        }).join('');
+      }
     }
 
     // Impacto (valor e %) dos novos limites aprovados — cooperativa e por agência
