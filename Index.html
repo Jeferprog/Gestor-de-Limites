@@ -385,6 +385,33 @@
                   <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-gray-100"></span> Sem retorno</span>
                 </div>
               </div>
+              <!-- Cards de resumo conforme os filtros aplicados -->
+              <div class="px-4 py-2 border-b border-outline-variant bg-white grid grid-cols-3 gap-2">
+                <div class="rounded border border-gray-200 bg-gray-50 px-2 py-1.5">
+                  <p class="text-[9px] text-gray-500 uppercase font-bold leading-tight">Casos</p>
+                  <p class="text-sm font-black text-primary leading-tight" id="card-g-casos">0</p>
+                </div>
+                <div class="rounded border border-gray-200 bg-gray-50 px-2 py-1.5">
+                  <p class="text-[9px] text-gray-500 uppercase font-bold leading-tight">Limite Atual</p>
+                  <p class="text-sm font-black text-gray-700 leading-tight" id="card-g-atual">R$ 0</p>
+                </div>
+                <div class="rounded border border-gray-200 bg-gray-50 px-2 py-1.5">
+                  <p class="text-[9px] text-gray-500 uppercase font-bold leading-tight">Sugerido</p>
+                  <p class="text-sm font-black text-secondary leading-tight" id="card-g-sug">R$ 0</p>
+                </div>
+                <div class="rounded border border-green-200 bg-green-50 px-2 py-1.5">
+                  <p class="text-[9px] text-green-700 uppercase font-bold leading-tight">Aprovado</p>
+                  <p class="text-sm font-black text-green-700 leading-tight" id="card-g-aprov">R$ 0</p>
+                </div>
+                <div class="rounded border border-amber-200 bg-amber-50 px-2 py-1.5">
+                  <p class="text-[9px] text-amber-700 uppercase font-bold leading-tight">Aguardando</p>
+                  <p class="text-sm font-black text-amber-700 leading-tight" id="card-g-aguard">0</p>
+                </div>
+                <div class="rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5">
+                  <p class="text-[9px] text-emerald-700 uppercase font-bold leading-tight">Liberado (Robô)</p>
+                  <p class="text-sm font-black text-emerald-700 leading-tight" id="card-g-lib">R$ 0</p>
+                </div>
+              </div>
               <div class="flex-1 overflow-y-auto">
                 <table class="w-full text-left">
                   <thead class="sticky top-0 bg-primary text-white text-xs uppercase font-bold z-10">
@@ -586,6 +613,7 @@
                     <th class="p-3 text-right">Limite Atual</th>
                     <th class="p-3 text-right">Sugerido (Motor)</th>
                     <th class="p-3 text-right">Aprovado</th>
+                    <th class="p-3 text-center">Casos Lib.</th>
                     <th class="p-3 text-right">Liberado (Robô)</th>
                   </tr>
                 </thead>
@@ -609,6 +637,7 @@
                     <th class="p-3 text-right">Limite Atual</th>
                     <th class="p-3 text-right">Sugerido</th>
                     <th class="p-3 text-right">Aprovado</th>
+                    <th class="p-3 text-center">Casos Lib.</th>
                     <th class="p-3 text-right">Liberado</th>
                   </tr>
                 </thead>
@@ -1015,12 +1044,34 @@
       );
     }
 
+    function atualizarCardsGestao(lista) {
+      if (!document.getElementById('card-g-casos')) return;
+      let casos = 0, atual = 0, sug = 0, aprov = 0, aguard = 0, lib = 0;
+      lista.forEach(function(a) {
+        const st = String(a.status || 'AGUARDANDO').toUpperCase();
+        const nv = Number(a.novoLimiteConfirmado) || 0;
+        casos++;
+        atual += Number(a.limiteAtual) || 0;
+        sug += Number(a.sugestaoMotor) || 0;
+        if (st === 'APROVADO') aprov += nv;
+        if (st === 'AGUARDANDO') aguard++;
+        if (a.retornoClasse === 'Liberado') lib += nv;
+      });
+      document.getElementById('card-g-casos').innerText = casos;
+      document.getElementById('card-g-atual').innerText = formatCurrency(atual);
+      document.getElementById('card-g-sug').innerText = formatCurrency(sug);
+      document.getElementById('card-g-aprov').innerText = formatCurrency(aprov);
+      document.getElementById('card-g-aguard').innerText = aguard;
+      document.getElementById('card-g-lib').innerText = formatCurrency(lib);
+    }
+
     function renderListaAssociados() {
       const temRetorno = !!(appData.retornoResumo && appData.retornoResumo.temDados);
       const legenda = document.getElementById('legenda-retorno');
       if (legenda) { legenda.classList.toggle('hidden', !temRetorno); legenda.classList.toggle('flex', temRetorno); }
 
       const listaCompleta = filtrarAssociadosAtuais();
+      atualizarCardsGestao(listaCompleta);
 
       const total = listaCompleta.length;
       const lista = listaCompleta.slice(0, MAX_LISTA);
@@ -1606,7 +1657,7 @@
       if (!document.getElementById('rel-comp-coop')) return;
       const assoc = appData.associados || [];
 
-      const zera = function() { return { casos: 0, atual: 0, sug: 0, aprov: 0, lib: 0 }; };
+      const zera = function() { return { casos: 0, atual: 0, sug: 0, aprov: 0, lib: 0, libCasos: 0 }; };
       const acumula = function(g, a) {
         const nv = Number(a.novoLimiteConfirmado) || 0;
         const aprovado = String(a.status || '').toUpperCase() === 'APROVADO';
@@ -1614,7 +1665,7 @@
         g.atual += Number(a.limiteAtual) || 0;
         g.sug += Number(a.sugestaoMotor) || 0;
         if (aprovado) g.aprov += nv;
-        if (a.retornoClasse === 'Liberado') g.lib += nv;
+        if (a.retornoClasse === 'Liberado') { g.lib += nv; g.libCasos++; }
       };
 
       const linha = function(rot, g, negrito) {
@@ -1625,6 +1676,7 @@
           "<td class='p-3 text-right'>" + formatCurrency(g.atual) + "</td>" +
           "<td class='p-3 text-right text-secondary'>" + formatCurrency(g.sug) + "</td>" +
           "<td class='p-3 text-right text-primary font-bold'>" + formatCurrency(g.aprov) + "</td>" +
+          "<td class='p-3 text-center text-green-700 font-bold'>" + g.libCasos + "</td>" +
           "<td class='p-3 text-right text-green-700 font-bold'>" + formatCurrency(g.lib) + "</td>" +
         "</tr>";
       };
@@ -1653,7 +1705,7 @@
         .sort(function(x, y) { return y.g.aprov - x.g.aprov; });
       const tbodyAg = document.getElementById('rel-comp-agencia');
       if (listaAg.length === 0) {
-        tbodyAg.innerHTML = "<tr><td colspan='6' class='p-6 text-center text-xs text-gray-400'>Sem dados.</td></tr>";
+        tbodyAg.innerHTML = "<tr><td colspan='7' class='p-6 text-center text-xs text-gray-400'>Sem dados.</td></tr>";
       } else {
         tbodyAg.innerHTML = listaAg.map(function(r) {
           return "<tr class='hover:bg-gray-50'>" +
@@ -1662,6 +1714,7 @@
             "<td class='p-3 text-right'>" + formatCurrency(r.g.atual) + "</td>" +
             "<td class='p-3 text-right text-secondary'>" + formatCurrency(r.g.sug) + "</td>" +
             "<td class='p-3 text-right text-primary font-bold'>" + formatCurrency(r.g.aprov) + "</td>" +
+            "<td class='p-3 text-center text-green-700 font-bold'>" + r.g.libCasos + "</td>" +
             "<td class='p-3 text-right text-green-700 font-bold'>" + formatCurrency(r.g.lib) + "</td>" +
           "</tr>";
         }).join('');
