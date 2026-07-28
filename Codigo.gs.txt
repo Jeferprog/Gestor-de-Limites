@@ -8,10 +8,18 @@
  * 2. Clique em Extensões > Apps Script.
  * 3. Cole este código no arquivo "Código.gs".
  * 4. Crie um novo arquivo HTML com o nome "Index.html" e cole o código HTML disponibilizado.
- * 5. Clique em Implantar > Nova implantação > Tipo: Aplicativo da Web.
- *    - Executar como: Você (sua conta)
- *    - Quem tem acesso: Qualquer pessoa no seu domínio (ou Qualquer pessoa)
- * 6. Copie a URL gerada e acesse o sistema corporativo.
+ * 5. Preencha a constante SPREADSHEET_ID abaixo com o ID da sua planilha.
+ * 6. Clique em Implantar > Nova implantação > Tipo: Aplicativo da Web.
+ *    - Executar como: Eu (proprietário)  <-- IMPORTANTE
+ *    - Quem tem acesso: Qualquer pessoa no seu domínio
+ * 7. Distribua às agências a URL que termina em /exec (a implantação
+ *    publicada), NUNCA a URL /dev (teste). A /dev exige acesso ao editor
+ *    do script e é a causa do erro de permissão em getActiveSpreadsheet.
+ *
+ * Por que "Executar como: Eu (proprietário)" + SPREADSHEET_ID?
+ *   Assim o sistema acessa a planilha com a SUA permissão, e as agências
+ *   não precisam ter a planilha compartilhada. O e-mail do colaborador
+ *   continua sendo identificado (mesmo domínio) para o controle de acesso.
  */
 
 function doGet(e) {
@@ -23,6 +31,24 @@ function doGet(e) {
 
 // Limite mínimo de crédito aplicado à sugestão do motor (em R$)
 var LIMITE_MINIMO = 500;
+
+// ID da planilha base (Google Sheets). Preencha com o ID que aparece na URL da
+// planilha: https://docs.google.com/spreadsheets/d/<ESTE_É_O_ID>/edit
+// Quando preenchido, o sistema abre a planilha por ID (openById) em vez de
+// depender da planilha "ativa". Isso permite implantar como Aplicativo da Web
+// com "Executar como: Eu (proprietário)", de modo que as agências acessem o
+// sistema SEM precisar de acesso direto à planilha — evitando o erro
+// "Você não tem permissão para chamar SpreadsheetApp.getActiveSpreadsheet".
+var SPREADSHEET_ID = "";
+
+// Retorna a planilha base de forma robusta: usa openById quando SPREADSHEET_ID
+// está preenchido; caso contrário, cai para a planilha ativa (script vinculado).
+function obterPlanilha() {
+  if (SPREADSHEET_ID && String(SPREADSHEET_ID).trim() !== "") {
+    return SpreadsheetApp.openById(String(SPREADSHEET_ID).trim());
+  }
+  return SpreadsheetApp.getActiveSpreadsheet();
+}
 
 // Colunas canônicas da aba Associados (a leitura/gravação é orientada por nome,
 // então novas colunas podem ser adicionadas sem quebrar índices)
@@ -45,7 +71,7 @@ var COLUNAS_RETORNOS = [
 
 // Inicializa a planilha com as abas e cabeçalhos necessários, caso não existam
 function inicializarPlanilha() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = obterPlanilha();
   
   // 1. Aba de Associados (apenas cabeçalho; dados vêm da importação)
   var shAssociados = ss.getSheetByName("Associados");
@@ -115,7 +141,7 @@ function inicializarPlanilha() {
 function obterDadosCompletos() {
   try {
     inicializarPlanilha();
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = obterPlanilha();
     
     // Identifica o colaborador logado e sua agência (controle de acesso)
     var usuario = obterUsuarioAtual();
@@ -268,7 +294,7 @@ function obterDadosCompletos() {
 function confirmarNovoLimite(id, novoLimite, justificativa) {
   try {
     if (estaBloqueado()) return { success: false, error: "A edição de limites está bloqueada." };
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = obterPlanilha();
     var sheet = ss.getSheetByName("Associados");
     var m = mapaColunas(sheet);
     var colId = m["id"], colNome = m["nome"], colStatus = m["status"];
@@ -306,7 +332,7 @@ function confirmarNovoLimite(id, novoLimite, justificativa) {
 function manterLimite(id, justificativa) {
   try {
     if (estaBloqueado()) return { success: false, error: "A edição de limites está bloqueada." };
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = obterPlanilha();
     var sheet = ss.getSheetByName("Associados");
     var m = mapaColunas(sheet);
     var colId = m["id"], colStatus = m["status"], colJust = m["justificativa"];
@@ -336,7 +362,7 @@ function registrarNovoProtocolo(associado, tipo, valorSolicitado) {
     if (!(u.isSede || u.semColaboradores || u.semIdentificacao)) {
       return { success: false, error: "Apenas colaboradores da SEDE podem criar protocolos." };
     }
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = obterPlanilha();
     var sheet = ss.getSheetByName("Protocolos");
     var novoId = "#2024-" + String(sheet.getLastRow()).padStart(3, '0');
     var dataStr = obterDataAtualFormatada();
@@ -350,7 +376,7 @@ function registrarNovoProtocolo(associado, tipo, valorSolicitado) {
 // Registra um novo upload no histórico
 function registrarUpload(arquivo, tipoLista, registros, status, detalhesErro) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = obterPlanilha();
     var sheet = ss.getSheetByName("Uploads");
     var novoId = "UP-" + String(sheet.getLastRow()).padStart(3, '0');
     var dataHoraStr = obterDataAtualFormatada() + " - " + obterHoraAtualFormatada();
@@ -364,7 +390,7 @@ function registrarUpload(arquivo, tipoLista, registros, status, detalhesErro) {
 // Valida e processa um arquivo real de texto (CSV/TSV) contendo as bases de majoração
 function validarEProcessarArquivo(nomeArquivo, conteudoTexto, tipoLista) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = obterPlanilha();
     inicializarPlanilha();
 
     // Importar listas é restrito à SEDE (defesa no servidor, além da interface).
@@ -705,7 +731,7 @@ function classificarRetorno(texto) {
 // primeiroLote=true substitui os retornos ANTERIORES DAQUELE SEGMENTO.
 function importarRetornoRobo(nomeArquivo, conteudoTexto, primeiroLote, tipoLista) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = obterPlanilha();
     inicializarPlanilha();
 
     var u = obterUsuarioAtual();
@@ -812,7 +838,7 @@ function obterUsuarioAtual() {
   var emailNorm = String(resultado.email).trim().toLowerCase();
   resultado.semIdentificacao = (emailNorm === "");
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = obterPlanilha();
   var sh = ss.getSheetByName("Colaboradores");
   if (!sh) { resultado.semColaboradores = true; return resultado; }
 
@@ -847,7 +873,7 @@ function mapaColunas(sheet) {
 // Garante que a aba Associados possua todas as colunas canônicas (adiciona as
 // faltantes ao final) e retorna o mapa {nomeNormalizado: índice 0-based}
 function garantirColunasAssociados() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = obterPlanilha();
   var sh = ss.getSheetByName("Associados");
   if (!sh) return {};
   var lastCol = Math.max(sh.getLastColumn(), 1);
@@ -865,7 +891,7 @@ function garantirColunasAssociados() {
 
 // Garante que a aba Retornos tenha todas as colunas (incl. Produto/Operação)
 function garantirColunasRetornos() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = obterPlanilha();
   var sh = ss.getSheetByName("Retornos");
   if (!sh) return {};
   var lastCol = Math.max(sh.getLastColumn(), 1);
