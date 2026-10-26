@@ -60,27 +60,15 @@
       <nav class="flex-1 space-y-1">
         <button onclick="setTab('visao-geral')" id="btn-visao-geral" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
           <span class="material-symbols-outlined">dashboard</span>
-          <span class="text-sm font-medium">Visão Geral</span>
+          <span class="text-sm font-medium">Dashboard</span>
         </button>
-        <button onclick="setTab('upload-listas')" id="btn-upload-listas" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
+        <button onclick="setTab('importacao')" id="btn-importacao" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
           <span class="material-symbols-outlined">upload_file</span>
-          <span class="text-sm font-medium">Upload de Listas</span>
-        </button>
-        <button onclick="setTab('gestao-limites')" id="btn-gestao-limites" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
-          <span class="material-symbols-outlined">format_list_bulleted</span>
-          <span class="text-sm font-medium">Gestão de Limites</span>
+          <span class="text-sm font-medium">Importação</span>
         </button>
         <button onclick="setTab('rotativos')" id="btn-rotativos" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
           <span class="material-symbols-outlined">autorenew</span>
           <span class="text-sm font-medium">Limites Rotativos</span>
-        </button>
-        <button onclick="setTab('relatorios')" id="btn-relatorios" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
-          <span class="material-symbols-outlined">download</span>
-          <span class="text-sm font-medium">Relatórios</span>
-        </button>
-        <button onclick="setTab('retorno-robo')" id="btn-retorno-robo" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
-          <span class="material-symbols-outlined">smart_toy</span>
-          <span class="text-sm font-medium">Retorno do Robô</span>
         </button>
       </nav>
 
@@ -780,19 +768,42 @@
           </div>
         </div>
 
-        <!-- ================= ROTATIVOS ================= -->
-        <div id="tab-rotativos" class="hidden space-y-6">
+        <!-- ================= IMPORTAÇÃO ================= -->
+        <div id="tab-importacao" class="hidden space-y-6">
           <div class="mb-2">
-            <h2 class="text-2xl font-black text-primary">Gestão de Limites Rotativos</h2>
-            <p class="text-gray-500 text-sm">Movimentação do crédito rotativo e informações para análise da renovação do limite.</p>
+            <h2 class="text-2xl font-black text-primary">Importação de Arquivos</h2>
+            <p class="text-gray-500 text-sm">Central de importações do sistema. Restrito à SEDE.</p>
           </div>
 
-          <!-- Importar relatório de rotativos (restrito à SEDE) -->
+          <!-- Base de Associados -->
+          <div class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">groups</span>
+                <h4 class="font-bold text-primary">Base de Associados</h4>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Substitui toda a base a cada envio (retrato do <b>Data Base</b>). Vínculo pela <b>Conta</b> (Nr. Conta Corrente). Aceita .xls, .xlsx ou .csv.</p>
+              <p class="text-[11px] text-gray-400 mt-1">O sistema reconhece as colunas pelo nome (Associado, CPF/CNPJ, Renda Mensal, % Comprom., Valor Mensal Endividamento, Score, Valor Limite Cheque Especial, SCR, etc.).</p>
+            </div>
+            <input type="file" id="base-file-input" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" class="hidden" onchange="handleBaseSelecionado(event)"/>
+            <button onclick="document.getElementById('base-file-input').click()" class="bg-primary text-white font-bold py-2.5 px-5 rounded-lg hover:brightness-110 flex items-center gap-2 shrink-0">
+              <span class="material-symbols-outlined text-base">upload_file</span> Enviar base
+            </button>
+          </div>
+          <div id="base-upload-status" class="hidden items-center gap-3 bg-primary-container text-on-primary-container rounded-lg px-4 py-3 text-sm font-bold">
+            <div class="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <span id="base-upload-status-text">Processando...</span>
+          </div>
+
+          <!-- Limites Rotativos -->
           <div id="rot-import-card" class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div class="flex-1">
-              <h4 class="font-bold text-primary">Importar relatório de rotativos</h4>
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-secondary">autorenew</span>
+                <h4 class="font-bold text-primary">Relatório de Limites Rotativos</h4>
+              </div>
               <p class="text-xs text-gray-500 mt-1">Substitui o relatório anterior. O vínculo com o associado é feito pela <b>Conta</b>. Aceita .xls, .xlsx ou .csv.</p>
-              <p class="text-[11px] text-gray-400 mt-1">O relatório deve conter as colunas de Agência, Conta, Associado, Valor Contrato, Valores Liberados, Soma Amort. Capital, Juros Pagos, Modalidade, Data Vencimento e Taxa de Juros.</p>
+              <p class="text-[11px] text-gray-400 mt-1">Colunas: Agência, Conta, Associado, Valor Contrato, Valores Liberados, Soma Amort. Capital, Juros Pagos, Modalidade, Data Vencimento, Taxa de Juros.</p>
             </div>
             <input type="file" id="rot-file-input" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" class="hidden" onchange="handleRotativoSelecionado(event)"/>
             <button onclick="document.getElementById('rot-file-input').click()" class="bg-secondary text-white font-bold py-2.5 px-5 rounded-lg hover:brightness-105 flex items-center gap-2 shrink-0">
@@ -802,6 +813,27 @@
           <div id="rot-upload-status" class="hidden items-center gap-3 bg-secondary-container text-on-secondary-container rounded-lg px-4 py-3 text-sm font-bold">
             <div class="w-5 h-5 border-2 border-on-secondary-container border-t-transparent rounded-full animate-spin"></div>
             <span id="rot-upload-status-text">Processando...</span>
+          </div>
+
+          <!-- Histórico de importações -->
+          <div class="bg-white rounded-lg border border-outline-variant shadow-sm">
+            <div class="p-4 border-b border-outline-variant bg-gray-50"><h4 class="font-bold text-primary">Histórico de Importações</h4></div>
+            <div class="overflow-y-auto max-h-80">
+              <table class="w-full text-left text-sm">
+                <thead class="sticky top-0 bg-primary text-white text-[11px] uppercase">
+                  <tr><th class="px-6 py-3">Arquivo</th><th class="px-6 py-3">Tipo</th><th class="px-6 py-3">Data/Hora</th><th class="px-6 py-3 text-center">Registros</th><th class="px-6 py-3">Status</th></tr>
+                </thead>
+                <tbody id="imp-uploads-table-body" class="divide-y divide-gray-100"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= ROTATIVOS ================= -->
+        <div id="tab-rotativos" class="hidden space-y-6">
+          <div class="mb-2">
+            <h2 class="text-2xl font-black text-primary">Gestão de Limites Rotativos</h2>
+            <p class="text-gray-500 text-sm">Movimentação do crédito rotativo e informações para análise da renovação do limite.</p>
           </div>
 
           <!-- Cards de resumo -->
@@ -979,32 +1011,26 @@
     };
 
     function setTab(tabId) {
-      // Upload de Listas, Relatórios e Retorno do Robô são restritos à SEDE
-      if ((tabId === 'upload-listas' || tabId === 'relatorios' || tabId === 'retorno-robo') && !podeImportar) {
+      // Importação é restrita à SEDE
+      if (tabId === 'importacao' && !podeImportar) {
         tabId = 'visao-geral';
       }
 
-      document.getElementById('tab-visao-geral').classList.add('hidden');
-      document.getElementById('tab-upload-listas').classList.add('hidden');
-      document.getElementById('tab-gestao-limites').classList.add('hidden');
-      document.getElementById('tab-relatorios').classList.add('hidden');
-      document.getElementById('tab-retorno-robo').classList.add('hidden');
-      document.getElementById('tab-rotativos').classList.add('hidden');
+      ['tab-visao-geral', 'tab-importacao', 'tab-rotativos',
+       'tab-upload-listas', 'tab-gestao-limites', 'tab-relatorios', 'tab-retorno-robo']
+        .forEach(function(id) { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
 
-      document.getElementById('tab-' + tabId).classList.remove('hidden');
+      const alvo = document.getElementById('tab-' + tabId);
+      if (alvo) alvo.classList.remove('hidden');
 
       const titles = {
-        'visao-geral': 'Visão Geral da Agência',
-        'upload-listas': 'Upload de Listas Central',
-        'gestao-limites': 'Gestão de Limites de Crédito',
-        'relatorios': 'Relatórios',
-        'retorno-robo': 'Retorno do Robô',
+        'visao-geral': 'Dashboard',
+        'importacao': 'Importação de Arquivos',
         'rotativos': 'Gestão de Limites Rotativos'
       };
-      document.getElementById('current-tab-title').innerText = titles[tabId];
+      document.getElementById('current-tab-title').innerText = titles[tabId] || '';
 
-      if (tabId === 'relatorios') { atualizarContagemRelatorio(); renderRelatorioPaineis(); }
-      if (tabId === 'retorno-robo') renderRetornoRobo();
+      if (tabId === 'importacao') renderImportacao();
       if (tabId === 'rotativos') renderRotativos();
     }
 
@@ -1081,6 +1107,8 @@
       // Recursos restritos à SEDE (libera também nos modos fail-safe): Upload de
       // Listas, botão Novo Protocolo e o histórico de importações.
       podeImportar = !u || u.isSede || u.semColaboradores || u.semIdentificacao;
+      const btnImport = document.getElementById('btn-importacao');
+      if (btnImport) btnImport.classList.toggle('hidden', !podeImportar);
       const btnUpload = document.getElementById('btn-upload-listas');
       if (btnUpload) btnUpload.classList.toggle('hidden', !podeImportar);
       const btnProto = document.getElementById('btn-novo-protocolo');
@@ -1196,6 +1224,7 @@
       renderRetornoRobo();
       renderResumoRetornoRelatorio();
       renderRotativos();
+      renderImportacao();
     }
 
     // Renderiza a lista de associados: aplica filtros + busca, limita a exibição
@@ -2474,6 +2503,88 @@
       XLSX.writeFile(wb, nome);
     }
 
+    // ================= IMPORTAÇÃO =================
+    function renderImportacao() {
+      const tbody = document.getElementById('imp-uploads-table-body');
+      if (!tbody) return;
+      const ups = appData.uploads || [];
+      if (ups.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='5' class='px-6 py-6 text-center text-xs text-gray-400'>Nenhuma importação realizada ainda.</td></tr>";
+        return;
+      }
+      tbody.innerHTML = ups.map(function(u) {
+        return "<tr class='hover:bg-gray-50'>" +
+          "<td class='px-6 py-3 font-bold text-primary'>" + (u.arquivo || '') + "</td>" +
+          "<td class='px-6 py-3'>" + (u.tipoLista || '') + "</td>" +
+          "<td class='px-6 py-3 text-gray-500'>" + (u.dataHora || '') + "</td>" +
+          "<td class='px-6 py-3 text-center font-medium'>" + (u.registros || 0) + "</td>" +
+          "<td class='px-6 py-3'><span class='px-2 py-0.5 rounded text-xs font-bold " +
+            (String(u.status).toLowerCase().indexOf('erro') !== -1 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700') +
+            "'>" + (u.status || '') + "</span></td>" +
+        "</tr>";
+      }).join('');
+    }
+
+    // Importa a Base de Associados (em lotes)
+    function handleBaseSelecionado(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
+      if (!isGAS) { alert('Importação disponível apenas no ambiente Google Sheets.'); return; }
+
+      mostrarBaseStatus('Lendo "' + file.name + '"...');
+      lerRetornoComoTabela(file).then(function(conteudo) {
+        return processarBaseEmLotes(file.name, conteudo);
+      }).catch(function(err) {
+        esconderBaseStatus();
+        alert('Não foi possível ler o arquivo: ' + err);
+      });
+      event.target.value = '';
+    }
+
+    async function processarBaseEmLotes(nomeArquivo, conteudo) {
+      conteudo = String(conteudo).replace(/^﻿/, '');
+      const linhas = conteudo.split(/\r?\n/);
+      const header = linhas[0] || '';
+      const dados = [];
+      for (let i = 1; i < linhas.length; i++) { if (linhas[i].trim() !== '') dados.push(linhas[i]); }
+      if (!header.trim()) { esconderBaseStatus(); alert('Arquivo vazio.'); return; }
+
+      const CHUNK = 500;
+      const totalLotes = Math.max(1, Math.ceil(dados.length / CHUNK));
+      let totalReg = 0;
+      try {
+        for (let i = 0; i < totalLotes; i++) {
+          mostrarBaseStatus('Processando base — lote ' + (i + 1) + '/' + totalLotes + '...');
+          const lote = header + '\n' + dados.slice(i * CHUNK, (i + 1) * CHUNK).join('\n');
+          const res = await runGAS('importarBaseAssociados', nomeArquivo, lote, i === 0);
+          if (!res || !res.success) {
+            esconderBaseStatus();
+            alert('Falha ao importar a base: ' + ((res && res.error) || 'erro'));
+            return;
+          }
+          totalReg += res.registros || 0;
+        }
+        await runGAS('registrarUploadImport', nomeArquivo, 'Base Associados', totalReg);
+        esconderBaseStatus();
+        alert('Base de associados importada: ' + totalReg + ' registro(s).');
+        loadAllData();
+      } catch (err) {
+        esconderBaseStatus();
+        alert('Falha de comunicação: ' + err);
+      }
+    }
+
+    function mostrarBaseStatus(txt) {
+      const bar = document.getElementById('base-upload-status');
+      document.getElementById('base-upload-status-text').innerText = txt;
+      bar.classList.remove('hidden'); bar.classList.add('flex');
+    }
+    function esconderBaseStatus() {
+      const bar = document.getElementById('base-upload-status');
+      bar.classList.add('hidden'); bar.classList.remove('flex');
+    }
+
     // Importa o relatório de rotativos (em lotes, para arquivos grandes)
     function handleRotativoSelecionado(event) {
       const file = event.target.files && event.target.files[0];
@@ -2514,6 +2625,7 @@
           }
           totalReg += res.registros || 0;
         }
+        await runGAS('registrarUploadImport', nomeArquivo, 'Rotativos', totalReg);
         esconderRotStatus();
         alert('Relatório de rotativos importado: ' + totalReg + ' registro(s).');
         loadAllData();
