@@ -2550,12 +2550,12 @@
       for (let i = 1; i < linhas.length; i++) { if (linhas[i].trim() !== '') dados.push(linhas[i]); }
       if (!header.trim()) { esconderBaseStatus(); alert('Arquivo vazio.'); return; }
 
-      const CHUNK = 500;
+      const CHUNK = 200; // base tem ~220 colunas; lote menor evita HTTP 413
       const totalLotes = Math.max(1, Math.ceil(dados.length / CHUNK));
       let totalReg = 0;
       try {
         for (let i = 0; i < totalLotes; i++) {
-          mostrarBaseStatus('Processando base — lote ' + (i + 1) + '/' + totalLotes + '...');
+          mostrarBaseStatus('Processando base — lote ' + (i + 1) + '/' + totalLotes + ' (' + dados.length + ' linhas)...');
           const lote = header + '\n' + dados.slice(i * CHUNK, (i + 1) * CHUNK).join('\n');
           const res = await runGAS('importarBaseAssociados', nomeArquivo, lote, i === 0);
           if (!res || !res.success) {
