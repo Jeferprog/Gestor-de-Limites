@@ -58,7 +58,9 @@ var COLUNAS_ASSOCIADOS = [
   "Tempo Associado (Anos)", "Justificativa", "Novo Limite Confirmado", "Agência",
   "Micro Segmento", "Ativo Comercial", "IRC", "Capital Social", "DT Base SCR",
   "Emprest. e Financ. SCR", "Emprest. e Financ. 360 SCR", "Emprest. e Financ. Mensal SCR",
-  "Limite SCR", "Saldo Devedor", "Endividamento"
+  "Limite SCR", "Saldo Devedor", "Endividamento",
+  "Data Base", "Gerente", "Segmentação", "Tipo Pessoa", "Limite Cartão",
+  "Uso Cheque Especial", "SCR 12 Meses", "SCR Uso Limite"
 ];
 
 // Colunas da aba Rotativos (relatório de crédito rotativo). O vínculo com o
@@ -1019,10 +1021,140 @@ function importarRotativos(nomeArquivo, conteudoTexto, primeiroLote) {
       if (need > shRot.getMaxRows()) shRot.insertRowsAfter(shRot.getMaxRows(), need - shRot.getMaxRows());
       shRot.getRange(start, 1, novas.length, totalCols).setValues(novas);
     }
+    return { success: true, registros: novas.length };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
 
-    // Registra no histórico de uploads
+// Registra uma entrada no histórico de Uploads (chamado pelo frontend ao final
+// de uma importação em lotes, com o total real de registros).
+function registrarUploadImport(nomeArquivo, tipo, registros) {
+  try {
+    registrarUpload(nomeArquivo, tipo, registros, "Validado", "");
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+// Importa (em lotes) a Base de Associados no layout completo da extração.
+// Restrito à SEDE. primeiroLote=true substitui TODA a base (retrato do Data Base).
+// Mapeia por NOME de coluna (robusto a ordem/colunas extras) e grava apenas os
+// campos relevantes nas colunas canônicas da aba Associados.
+function importarBaseAssociados(nomeArquivo, conteudoTexto, primeiroLote) {
+  try {
+    var ss = obterPlanilha();
+    inicializarPlanilha();
+
+    var u = obterUsuarioAtual();
+    if (!(u.isSede || u.semColaboradores || u.semIdentificacao)) {
+      return { success: false, error: "Apenas a SEDE pode importar a base de associados." };
+    }
+
+    conteudoTexto = String(conteudoTexto).replace(/^﻿/, '');
+    var linhas = conteudoTexto.split(/\r?\n/);
+    if (linhas.length === 0 || linhas[0].trim() === "") return { success: false, error: "Arquivo vazio." };
+
+    var delim = detectarDelimitador(linhas[0]);
+    var cab = linhas[0].split(delim).map(function(c) { return c.replace(/^["']|["']$/g, '').trim(); });
+
+    // Localiza a 1ª coluna cujo nome normalizado satisfaz o predicado
+    var achar = function(pred) {
+      for (var i = 0; i < cab.length; i++) { if (pred(normalizarCol(cab[i]))) return i; }
+      return -1;
+    };
+    var col = {
+      conta:      achar(function(x) { return x.indexOf("conta corrente") !== -1; }),
+      nome:       achar(function(x) { return x === "associado"; }),
+      cpf:        achar(function(x) { return x === "cpf/cnpj" || (x.indexOf("cpf") !== -1 && x.indexOf("cnpj") !== -1); }),
+      agencia:    achar(function(x) { return x === "agencia"; }),
+      micro:      achar(function(x) { return x.indexOf("micro") !== -1 && x.indexOf("segment") !== -1; }),
+      seg:        achar(function(x) { return x === "segmentacao"; }),
+      renda:      achar(function(x) { return x === "renda mensal"; }),
+      comprom:    achar(function(x) { return x.indexOf("comprom") !== -1; }),
+      endiv:      achar(function(x) { return x.indexOf("endivid") !== -1; }),
+      score:      achar(function(x) { return x === "score"; }),
+      irc:        achar(function(x) { return x === "irc"; }),
+      ativo:      achar(function(x) { return x === "ativo comercial"; }),
+      capital:    achar(function(x) { return x === "capital social"; }),
+      limiteCE:   achar(function(x) { return x.indexOf("limite cheque especial") !== -1; }),
+      usoCE:      achar(function(x) { return x.indexOf("uso lim") !== -1 && x.indexOf("cheque especial") !== -1; }),
+      inad:       achar(function(x) { return x.indexOf("dias contrato maior atraso") !== -1; }),
+      diasAssoc:  achar(function(x) { return x.indexOf("dias de associac") !== -1; }),
+      dtScr:      achar(function(x) { return x.indexOf("scr data consulta") !== -1; }),
+      scr12:      achar(function(x) { return x === "scr 12 meses"; }),
+      scrTotal:   achar(function(x) { return x === "scr total"; }),
+      scrUso:     achar(function(x) { return x === "scr uso limite"; }),
+      limCartao:  achar(function(x) { return x.indexOf("limite cartao credito") !== -1; }),
+      gerente:    achar(function(x) { return x.indexOf("gerente responsavel") !== -1; }),
+      tipoPessoa: achar(function(x) { return x === "tipo pessoa"; }),
+      dataBase:   achar(function(x) { return x === "data base"; })
+    };
+
+    if (col.conta === -1 || col.nome === -1) {
+      return { success: false, error: "Layout da base incompatível (não encontrei 'Nr. Conta Corrente' e/ou 'Associado'). Primeiras colunas lidas: " + cab.slice(0, 10).join(" | ") };
+    }
+
+    var mapaA = garantirColunasAssociados();
+    var sh = ss.getSheetByName("Associados");
+    var totalCols = sh.getLastColumn();
+
     if (primeiroLote) {
-      registrarUpload(nomeArquivo, "Rotativos", novas.length, "Validado", "");
+      var lr = sh.getLastRow();
+      if (lr > 1) sh.getRange(2, 1, lr - 1, totalCols).clearContent();
+    }
+
+    var val = function(cols, j) { return (j === -1) ? "" : (cols[j] || ""); };
+    var din = function(cols, j) { return parseDinheiro(val(cols, j)); };
+
+    var novas = [];
+    for (var i = 1; i < linhas.length; i++) {
+      var lt = linhas[i];
+      if (!lt || lt.trim() === "") continue;
+      var cols = lt.split(delim).map(function(c) { return c.replace(/^["']|["']$/g, '').trim(); });
+      var conta = val(cols, col.conta);
+      if (!String(conta).trim()) continue;
+
+      var dias = Math.floor(parseDinheiro(val(cols, col.diasAssoc))) || 0;
+      var anos = Math.floor(dias / 365);
+
+      var arr = new Array(totalCols).fill("");
+      var set = function(nome, valor) { var idx = mapaA[normalizarCol(nome)]; if (idx !== undefined) arr[idx] = valor; };
+      set("ID", String(conta).trim());
+      set("Nome", val(cols, col.nome));
+      set("CPF/CNPJ", val(cols, col.cpf));
+      set("Conta", String(conta).trim());
+      set("Limite Atual", din(cols, col.limiteCE));
+      set("Renda Comprovada", din(cols, col.renda));
+      set("Comprometimento SCR", din(cols, col.comprom));
+      set("Score", din(cols, col.score));
+      set("Inadimplência Dias", din(cols, col.inad));
+      set("Tempo Associado (Anos)", anos);
+      set("Agência", val(cols, col.agencia));
+      set("Micro Segmento", val(cols, col.micro));
+      set("Ativo Comercial", val(cols, col.ativo));
+      set("IRC", val(cols, col.irc));
+      set("Capital Social", din(cols, col.capital));
+      set("DT Base SCR", formatarMesAno(val(cols, col.dtScr)));
+      set("Saldo Devedor", din(cols, col.scrTotal));
+      set("Endividamento", din(cols, col.endiv));
+      set("Data Base", val(cols, col.dataBase));
+      set("Gerente", val(cols, col.gerente));
+      set("Segmentação", val(cols, col.seg));
+      set("Tipo Pessoa", val(cols, col.tipoPessoa));
+      set("Limite Cartão", din(cols, col.limCartao));
+      set("Uso Cheque Especial", din(cols, col.usoCE));
+      set("SCR 12 Meses", din(cols, col.scr12));
+      set("SCR Uso Limite", din(cols, col.scrUso));
+      novas.push(arr);
+    }
+
+    if (novas.length > 0) {
+      var start = sh.getLastRow() + 1;
+      var need = start + novas.length - 1;
+      if (need > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), need - sh.getMaxRows());
+      sh.getRange(start, 1, novas.length, totalCols).setValues(novas);
     }
     return { success: true, registros: novas.length };
   } catch (err) {
