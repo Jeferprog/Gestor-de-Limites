@@ -58,7 +58,13 @@ var COLUNAS_ASSOCIADOS = [
   "Tempo Associado (Anos)", "Justificativa", "Novo Limite Confirmado", "Agência",
   "Micro Segmento", "Ativo Comercial", "IRC", "Capital Social", "DT Base SCR",
   "Emprest. e Financ. SCR", "Emprest. e Financ. 360 SCR", "Emprest. e Financ. Mensal SCR",
-  "Limite SCR", "Saldo Devedor"
+  "Limite SCR", "Saldo Devedor", "Endividamento"
+];
+
+// Colunas da aba Rotativos (relatório de crédito rotativo). O vínculo com o
+// associado é feito pela CONTA. Liberações/Amortizações/Juros vêm do relatório.
+var COLUNAS_ROTATIVOS = [
+  "ID", "Conta", "Limite Atual", "Liberações", "Amortizações", "Juros Pagos", "Data Relatório"
 ];
 
 // Colunas da aba Retornos (resultado do robô/RPA). Produto/Operação são
@@ -123,6 +129,15 @@ function inicializarPlanilha() {
     shRet.appendRow(COLUNAS_RETORNOS);
     shRet.setFrozenRows(1);
     shRet.autoResizeColumns(1, COLUNAS_RETORNOS.length);
+  }
+
+  // 6. Aba de Rotativos (relatório de crédito rotativo)
+  var shRot = ss.getSheetByName("Rotativos");
+  if (!shRot) {
+    shRot = ss.insertSheet("Rotativos");
+    shRot.appendRow(COLUNAS_ROTATIVOS);
+    shRot.setFrozenRows(1);
+    shRot.autoResizeColumns(1, COLUNAS_ROTATIVOS.length);
   }
 
   // Garante todas as colunas (incl. novas) em planilhas já existentes (migração)
@@ -199,7 +214,8 @@ function obterDadosCompletos() {
         emprest360: Number(g("emprest. e financ. 360 scr")) || 0,
         emprestMensal: Number(g("emprest. e financ. mensal scr")) || 0,
         limiteScr: Number(g("limite scr")) || 0,
-        saldoDevedor: Number(g("saldo devedor")) || 0
+        saldoDevedor: Number(g("saldo devedor")) || 0,
+        endividamento: Number(g("endividamento")) || 0
       });
     }
 
@@ -208,6 +224,9 @@ function obterDadosCompletos() {
 
     // 1b. Retornos do robô: vincula por CONTA e monta o resumo geral
     var retornoResumo = carregarRetornosEVincular(ss, associados);
+
+    // 1c. Rotativos: vincula por CONTA aos associados visíveis (respeita a agência)
+    var rotativos = carregarRotativos(ss, associados, verTudo);
 
     // 2. Carrega Uploads
     var shUploads = ss.getSheetByName("Uploads");
@@ -270,6 +289,7 @@ function obterDadosCompletos() {
       uploads: uploads.reverse(), // Ordena mais novos primeiro
       protocolos: protocolos,
       retornoResumo: retornoResumo,
+      rotativos: rotativos,
       estatisticas: {
         totalPendente: totalPendente,
         limiteContaTotal: limiteContaTotal,
@@ -822,6 +842,175 @@ function importarRetornoRobo(nomeArquivo, conteudoTexto, primeiroLote, tipoLista
   } catch (err) {
     return { success: false, error: err.toString() };
   }
+}
+
+// Carrega o relatório de rotativos e vincula por CONTA aos associados visíveis.
+// Renda/Comprometimento/Endividamento/Score vêm da base de Associados.
+// Para usuários de agência, só retorna rotativos cuja conta pertence a um
+// associado visível (a lista "associados" já vem filtrada por agência).
+function carregarRotativos(ss, associados, verTudo) {
+  var sh = ss.getSheetByName("Rotativos");
+  if (!sh) return [];
+  var mapa = garantirColunasRotativos();
+  var dados = sh.getDataRange().getValues();
+  if (dados.length < 2) return [];
+
+  // Índice conta -> associado (prefere o registro de produto "Conta")
+  var porConta = {};
+  associados.forEach(function(a) {
+    var k = normalizarConta(a.conta);
+    if (!k) return;
+    var atual = porConta[k];
+    var ehConta = normalizarCol(a.produto) !== "cartao";
+    if (!atual || (ehConta && normalizarCol(atual.produto) === "cartao")) porConta[k] = a;
+  });
+
+  var cId = mapa["id"], cConta = mapa["conta"], cLim = mapa["limite atual"],
+      cLib = mapa["liberacoes"], cAmort = mapa["amortizacoes"],
+      cJuros = mapa["juros pagos"], cData = mapa["data relatorio"];
+
+  var lista = [];
+  for (var i = 1; i < dados.length; i++) {
+    var r = dados[i];
+    var contaRaw = cConta !== undefined ? r[cConta] : "";
+    var kConta = normalizarConta(contaRaw);
+    if (!kConta) continue;
+
+    var a = porConta[kConta];
+    if (!a && !verTudo) continue; // agência só vê contas da sua carteira
+
+    lista.push({
+      id: cId !== undefined ? r[cId] : "",
+      conta: String(contaRaw).trim(),
+      limiteAtual: Number(cLim !== undefined ? r[cLim] : 0) || 0,
+      liberacoes: Number(cLib !== undefined ? r[cLib] : 0) || 0,
+      amortizacoes: Number(cAmort !== undefined ? r[cAmort] : 0) || 0,
+      jurosPagos: Number(cJuros !== undefined ? r[cJuros] : 0) || 0,
+      dataRelatorio: cData !== undefined ? String(r[cData] || "").trim() : "",
+      // Dados do associado (base) para análise da renovação
+      temAssociado: !!a,
+      nome: a ? a.nome : "(associado não encontrado na base)",
+      cpfCnpj: a ? a.cpfCnpj : "",
+      agencia: a ? a.agencia : "",
+      microSegmento: a ? a.microSegmento : "",
+      rendaComprovada: a ? a.rendaComprovada : 0,
+      comprometimentoSCR: a ? a.comprometimentoSCR : 0,
+      endividamento: a ? a.endividamento : 0,
+      score: a ? a.score : 0,
+      inadimplenciaDias: a ? a.inadimplenciaDias : 0,
+      tempoAssociadoAnos: a ? a.tempoAssociadoAnos : 0,
+      limiteBase: a ? a.limiteAtual : 0,
+      sugestaoMotor: a ? a.sugestaoMotor : 0,
+      status: a ? a.status : "",
+      novoLimiteConfirmado: a ? a.novoLimiteConfirmado : null,
+      saldoDevedor: a ? a.saldoDevedor : 0,
+      retornoRobo: a ? (a.retornoRobo || "") : "",
+      retornoClasse: a ? (a.retornoClasse || "") : ""
+    });
+  }
+  return lista;
+}
+
+// Importa (em lotes) o relatório de rotativos. Restrito à SEDE.
+// primeiroLote=true substitui TODO o relatório anterior (é um retrato periódico).
+function importarRotativos(nomeArquivo, conteudoTexto, primeiroLote) {
+  try {
+    var ss = obterPlanilha();
+    inicializarPlanilha();
+
+    var u = obterUsuarioAtual();
+    if (!(u.isSede || u.semColaboradores || u.semIdentificacao)) {
+      return { success: false, error: "Apenas a SEDE pode importar o relatório de rotativos." };
+    }
+
+    conteudoTexto = String(conteudoTexto).replace(/^﻿/, '');
+    var linhas = conteudoTexto.split(/\r?\n/);
+    if (linhas.length === 0 || linhas[0].trim() === "") {
+      return { success: false, error: "Arquivo vazio." };
+    }
+
+    var delim = detectarDelimitador(linhas[0]);
+    var cab = linhas[0].split(delim).map(function(c) { return c.replace(/^["']|["']$/g, '').trim(); });
+
+    // Mapeia colunas por nome, tolerando variações de rótulo do relatório
+    var idx = { id: -1, conta: -1, limite: -1, lib: -1, amort: -1, juros: -1, data: -1 };
+    cab.forEach(function(c, i) {
+      var x = normalizarCol(c);
+      if (idx.conta === -1 && x === "conta") idx.conta = i;
+      else if (idx.limite === -1 && (x.indexOf("limite") !== -1)) idx.limite = i;
+      else if (idx.lib === -1 && (x.indexOf("liberac") !== -1 || x.indexOf("liberaç") !== -1)) idx.lib = i;
+      else if (idx.amort === -1 && x.indexOf("amortiz") !== -1) idx.amort = i;
+      else if (idx.juros === -1 && x.indexOf("juros") !== -1) idx.juros = i;
+      else if (idx.data === -1 && (x.indexOf("data") !== -1 || x.indexOf("referencia") !== -1 || x.indexOf("competencia") !== -1)) idx.data = i;
+      else if (idx.id === -1 && x === "id") idx.id = i;
+    });
+
+    if (idx.conta === -1) {
+      return { success: false, error: "Layout do rotativo incompatível (falta a coluna CONTA). Cabeçalho lido: " + cab.join(" | ") };
+    }
+
+    var shRot = ss.getSheetByName("Rotativos");
+    garantirColunasRotativos();
+    var totalCols = COLUNAS_ROTATIVOS.length;
+
+    // No primeiro lote, limpa o relatório anterior (retrato completo)
+    if (primeiroLote) {
+      var lr = shRot.getLastRow();
+      if (lr > 1) shRot.getRange(2, 1, lr - 1, shRot.getLastColumn()).clearContent();
+    }
+
+    var pega = function(cols, j) { return (j === -1) ? "" : (cols[j] || ""); };
+    var novas = [];
+    for (var i = 1; i < linhas.length; i++) {
+      var lt = linhas[i].trim();
+      if (lt === "") continue;
+      var cols = lt.split(delim).map(function(c) { return c.replace(/^["']|["']$/g, '').trim(); });
+      var conta = pega(cols, idx.conta);
+      if (!String(conta).trim()) continue;
+      novas.push([
+        pega(cols, idx.id),
+        conta,
+        parseDinheiro(pega(cols, idx.limite)),
+        parseDinheiro(pega(cols, idx.lib)),
+        parseDinheiro(pega(cols, idx.amort)),
+        parseDinheiro(pega(cols, idx.juros)),
+        pega(cols, idx.data)
+      ]);
+    }
+
+    if (novas.length > 0) {
+      var start = shRot.getLastRow() + 1;
+      var need = start + novas.length - 1;
+      if (need > shRot.getMaxRows()) shRot.insertRowsAfter(shRot.getMaxRows(), need - shRot.getMaxRows());
+      shRot.getRange(start, 1, novas.length, totalCols).setValues(novas);
+    }
+
+    // Registra no histórico de uploads
+    if (primeiroLote) {
+      registrarUpload(nomeArquivo, "Rotativos", novas.length, "Validado", "");
+    }
+    return { success: true, registros: novas.length };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// Garante que a aba Rotativos tenha todas as colunas e retorna o mapa
+function garantirColunasRotativos() {
+  var ss = obterPlanilha();
+  var sh = ss.getSheetByName("Rotativos");
+  if (!sh) return {};
+  var lastCol = Math.max(sh.getLastColumn(), 1);
+  var header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var existentes = header.map(function(h) { return normalizarCol(h); });
+  COLUNAS_ROTATIVOS.forEach(function(col) {
+    if (existentes.indexOf(normalizarCol(col)) === -1) {
+      lastCol++;
+      sh.getRange(1, lastCol).setValue(col);
+      existentes.push(normalizarCol(col));
+    }
+  });
+  return mapaColunas(sh);
 }
 
 // Identifica o colaborador logado (via conta Google) e sua agência na aba Colaboradores
