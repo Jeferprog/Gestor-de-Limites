@@ -2246,6 +2246,45 @@
             }
             const ws = wb.Sheets[wb.SheetNames[0]];
             const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+
+            // Correção de DATAS: o raw:false do SheetJS formata datas de forma
+            // ambígua (ex.: "12/7/26" = mês/dia). Para as colunas de data, lemos
+            // o número de série do Excel direto da célula e convertemos para
+            // dd/mm/aaaa de forma determinística (evita o Sheets reinterpretar).
+            function serialParaBR(n) {
+              const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+              if (isNaN(d.getTime())) return String(n);
+              const p = function(x) { return ('0' + x).slice(-2); };
+              return p(d.getUTCDate()) + '/' + p(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear();
+            }
+            function ehCelulaData(cell) {
+              return cell && cell.t === 'n' && typeof cell.v === 'number' &&
+                     cell.v >= 20000 && cell.v <= 100000 &&
+                     cell.w && /^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(String(cell.w).trim());
+            }
+            if (ws['!ref']) {
+              const range = XLSX.utils.decode_range(ws['!ref']);
+              // Detecta colunas de data amostrando algumas linhas de dados
+              const colsData = {};
+              for (let c = range.s.c; c <= range.e.c; c++) {
+                for (let r = range.s.r + 1; r <= Math.min(range.s.r + 40, range.e.r); r++) {
+                  const cell = ws[XLSX.utils.encode_cell({ r: r, c: c })];
+                  if (!cell || cell.v === '' || cell.v == null) continue;
+                  if (ehCelulaData(cell)) colsData[c] = true;
+                  break; // 1ª célula não-vazia decide
+                }
+              }
+              // Reescreve apenas as colunas de data com o valor correto
+              Object.keys(colsData).forEach(function(cs) {
+                const c = Number(cs);
+                const ci = c - range.s.c;
+                for (let r = range.s.r + 1, k = 1; r <= range.e.r; r++, k++) {
+                  const cell = ws[XLSX.utils.encode_cell({ r: r, c: c })];
+                  if (ehCelulaData(cell) && aoa[k]) aoa[k][ci] = serialParaBR(cell.v);
+                }
+              });
+            }
+
             // Cada célula vira texto de uma linha só (remove \r \n \t); delimitador = TAB
             const linhas = aoa
               .filter(function(row) { return row && row.length; })

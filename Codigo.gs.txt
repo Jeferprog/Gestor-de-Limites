@@ -899,7 +899,7 @@ function carregarRotativos(ss, associados, verTudo) {
       amortizacoes: Number(get(r, cAmort)) || 0,
       jurosPagos: Number(get(r, cJuros)) || 0,
       modalidade: String(get(r, cModal) || "").trim(),
-      vencimento: String(get(r, cVenc) || "").trim(),
+      vencimento: formatarDataBR(get(r, cVenc)),
       taxaJuros: String(get(r, cTaxa) || "").trim(),
       indexador: String(get(r, cIndex) || "").trim(),
       contrato: String(get(r, cContr) || "").trim(),
@@ -979,8 +979,10 @@ function importarRotativos(nomeArquivo, conteudoTexto, primeiroLote) {
     }
 
     var shRot = ss.getSheetByName("Rotativos");
-    garantirColunasRotativos();
+    var mapaRot = garantirColunasRotativos();
     var totalCols = COLUNAS_ROTATIVOS.length;
+    // Coluna da Data de Vencimento (1-based) para forçar formato de texto
+    var colVenc = (mapaRot && mapaRot["data vencimento"] !== undefined) ? (mapaRot["data vencimento"] + 1) : 6;
 
     // No primeiro lote, limpa o relatório anterior (retrato completo)
     if (primeiroLote) {
@@ -1019,6 +1021,9 @@ function importarRotativos(nomeArquivo, conteudoTexto, primeiroLote) {
       var start = shRot.getLastRow() + 1;
       var need = start + novas.length - 1;
       if (need > shRot.getMaxRows()) shRot.insertRowsAfter(shRot.getMaxRows(), need - shRot.getMaxRows());
+      // Força a coluna de vencimento como TEXTO antes de gravar, para o Sheets
+      // não reinterpretar "07/12/2026" como data (evita conversão/locale).
+      shRot.getRange(start, colVenc, novas.length, 1).setNumberFormat('@');
       shRot.getRange(start, 1, novas.length, totalCols).setValues(novas);
     }
     return { success: true, registros: novas.length };
@@ -1312,6 +1317,31 @@ function formatarMesAno(v) {
 function arredondarParaBaixoMil(v) {
   var n = Number(v) || 0;
   return Math.floor(n / 1000) * 1000;
+}
+
+// Formata uma data para dd/mm/aaaa (aceita Date, número de série do Excel,
+// ISO aaaa-mm-dd ou dd/mm/aaaa). Mantém texto vazio como "".
+function formatarDataBR(v) {
+  if (v === null || v === undefined || v === "") return "";
+  var pad = function(x) { return ("0" + x).slice(-2); };
+  if (Object.prototype.toString.call(v) === "[object Date]" && !isNaN(v.getTime())) {
+    return pad(v.getDate()) + "/" + pad(v.getMonth() + 1) + "/" + v.getFullYear();
+  }
+  var s = String(v).trim();
+  if (s === "" || s === "-") return "";
+  if (/^\d+(\.\d+)?$/.test(s)) {
+    var n = parseFloat(s);
+    if (n > 20000 && n < 100000) {
+      var d = new Date(Math.round((n - 25569) * 86400 * 1000));
+      if (!isNaN(d.getTime())) return pad(d.getUTCDate()) + "/" + pad(d.getUTCMonth() + 1) + "/" + d.getUTCFullYear();
+    }
+    return s;
+  }
+  var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return iso[3] + "/" + iso[2] + "/" + iso[1];
+  var br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (br) { var yy = br[3]; if (yy.length === 2) yy = "20" + yy; return pad(br[1]) + "/" + pad(br[2]) + "/" + yy; }
+  return s;
 }
 
 // Garante um objeto 100% serializável pelo google.script.run.
