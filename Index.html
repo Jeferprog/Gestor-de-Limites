@@ -70,6 +70,10 @@
           <span class="material-symbols-outlined">format_list_bulleted</span>
           <span class="text-sm font-medium">Gestão de Limites</span>
         </button>
+        <button onclick="setTab('rotativos')" id="btn-rotativos" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
+          <span class="material-symbols-outlined">autorenew</span>
+          <span class="text-sm font-medium">Limites Rotativos</span>
+        </button>
         <button onclick="setTab('relatorios')" id="btn-relatorios" class="w-full flex items-center gap-3 text-gray-600 px-4 py-3 hover:bg-gray-200/50 rounded-lg transition-all text-left">
           <span class="material-symbols-outlined">download</span>
           <span class="text-sm font-medium">Relatórios</span>
@@ -776,6 +780,153 @@
           </div>
         </div>
 
+        <!-- ================= ROTATIVOS ================= -->
+        <div id="tab-rotativos" class="hidden space-y-6">
+          <div class="mb-2">
+            <h2 class="text-2xl font-black text-primary">Gestão de Limites Rotativos</h2>
+            <p class="text-gray-500 text-sm">Movimentação do crédito rotativo e informações para análise da renovação do limite.</p>
+          </div>
+
+          <!-- Importar relatório de rotativos (restrito à SEDE) -->
+          <div id="rot-import-card" class="bg-white p-6 rounded-lg border border-outline-variant shadow-sm flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div class="flex-1">
+              <h4 class="font-bold text-primary">Importar relatório de rotativos</h4>
+              <p class="text-xs text-gray-500 mt-1">Substitui o relatório anterior. O vínculo com o associado é feito pela <b>Conta</b>. Aceita .xls, .xlsx ou .csv.</p>
+              <p class="text-[11px] text-gray-400 mt-1">Colunas esperadas: Conta, Limite Atual, Liberações, Amortizações, Juros Pagos, Data (referência).</p>
+            </div>
+            <input type="file" id="rot-file-input" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" class="hidden" onchange="handleRotativoSelecionado(event)"/>
+            <button onclick="document.getElementById('rot-file-input').click()" class="bg-secondary text-white font-bold py-2.5 px-5 rounded-lg hover:brightness-105 flex items-center gap-2 shrink-0">
+              <span class="material-symbols-outlined text-base">upload_file</span> Enviar relatório
+            </button>
+          </div>
+          <div id="rot-upload-status" class="hidden items-center gap-3 bg-secondary-container text-on-secondary-container rounded-lg px-4 py-3 text-sm font-bold">
+            <div class="w-5 h-5 border-2 border-on-secondary-container border-t-transparent rounded-full animate-spin"></div>
+            <span id="rot-upload-status-text">Processando...</span>
+          </div>
+
+          <!-- Cards de resumo -->
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-primary">
+              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Contas</span>
+              <div class="text-2xl font-black text-gray-900 mt-1" id="rot-card-casos">0</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-gray-400">
+              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Limite Atual</span>
+              <div class="text-xl font-black text-gray-700 mt-1" id="rot-card-limite">R$ 0</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-green-600">
+              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Liberações</span>
+              <div class="text-xl font-black text-green-700 mt-1" id="rot-card-lib">R$ 0</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-blue-600">
+              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Amortizações</span>
+              <div class="text-xl font-black text-blue-700 mt-1" id="rot-card-amort">R$ 0</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-amber-500">
+              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Juros Pagos</span>
+              <div class="text-xl font-black text-amber-600 mt-1" id="rot-card-juros">R$ 0</div>
+            </div>
+          </div>
+
+          <!-- Estado vazio -->
+          <div id="rot-vazio" class="bg-white p-8 rounded-lg border border-outline-variant shadow-sm text-center text-sm text-gray-400">
+            Nenhum rotativo disponível. A SEDE deve importar o relatório de rotativos para começar.
+          </div>
+
+          <!-- Two-pane: lista + detalhamento -->
+          <div id="rot-painel" class="hidden flex border border-outline-variant rounded-lg bg-white overflow-hidden h-[calc(100vh-300px)] min-h-[520px]">
+            <!-- Lista -->
+            <div class="w-[60%] flex flex-col border-r border-outline-variant h-full">
+              <div class="p-4 border-b border-outline-variant bg-gray-50 space-y-2">
+                <div class="flex justify-between items-center gap-2">
+                  <h3 class="font-bold text-primary text-sm">Contas com Rotativo</h3>
+                  <span class="text-xs text-gray-500" id="rot-count">0</span>
+                </div>
+                <div class="relative">
+                  <span class="material-symbols-outlined text-gray-400 text-base absolute left-2 top-1/2 -translate-y-1/2">search</span>
+                  <input id="rot-busca" type="text" oninput="onBuscaRotInput()" placeholder="Buscar por nome, CPF/CNPJ ou conta..."
+                         class="w-full text-xs border-gray-300 rounded py-1.5 pl-8 pr-2 bg-white"/>
+                </div>
+              </div>
+              <div class="flex-1 overflow-y-auto">
+                <table class="w-full text-left">
+                  <thead class="sticky top-0 bg-primary text-white text-xs uppercase font-bold z-10">
+                    <tr>
+                      <th class="p-3">Associado / Conta</th>
+                      <th class="p-3 text-right">Limite Atual</th>
+                      <th class="p-3 text-right">Liberações</th>
+                      <th class="p-3 text-right">Amortizações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rot-table-body" class="divide-y divide-gray-100 text-sm"></tbody>
+                </table>
+              </div>
+            </div>
+            <!-- Detalhamento -->
+            <div class="w-[40%] bg-surface-container-low p-6 flex flex-col h-full overflow-y-auto space-y-5">
+              <div id="rot-no-sel" class="h-full flex flex-col items-center justify-center text-center p-6 text-gray-500">
+                <span class="material-symbols-outlined text-4xl mb-2">autorenew</span>
+                <p class="font-bold text-sm">Selecione uma conta da lista</p>
+              </div>
+              <div id="rot-detalhe" class="hidden space-y-4">
+                <div>
+                  <h3 class="text-lg font-bold text-primary" id="rot-det-nome">Nome</h3>
+                  <p class="text-xs text-gray-500" id="rot-det-meta">Conta — CPF</p>
+                  <p class="text-[10px] text-secondary font-bold uppercase mt-1" id="rot-det-carteira">Carteira: —</p>
+                </div>
+
+                <!-- Movimentação do rotativo -->
+                <div class="bg-white p-4 rounded border">
+                  <p class="text-[10px] text-gray-500 uppercase font-bold mb-3 tracking-wider">Movimentação do Rotativo</p>
+                  <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="bg-gray-50 rounded p-2"><span class="text-gray-500 block">Limite Atual</span><span class="font-black text-gray-800 text-sm" id="rot-det-limite">—</span></div>
+                    <div class="bg-green-50 rounded p-2"><span class="text-green-700 block">Liberações</span><span class="font-black text-green-700 text-sm" id="rot-det-lib">—</span></div>
+                    <div class="bg-blue-50 rounded p-2"><span class="text-blue-700 block">Amortizações</span><span class="font-black text-blue-700 text-sm" id="rot-det-amort">—</span></div>
+                    <div class="bg-amber-50 rounded p-2"><span class="text-amber-700 block">Juros Pagos</span><span class="font-black text-amber-600 text-sm" id="rot-det-juros">—</span></div>
+                  </div>
+                  <div class="flex justify-between gap-2 text-xs mt-3 pt-3 border-t">
+                    <span class="text-gray-500">Saldo em utilização <span class="text-gray-400">(Lib. − Amort.)</span></span>
+                    <span class="font-bold text-right" id="rot-det-saldo">—</span>
+                  </div>
+                  <div class="flex justify-between gap-2 text-xs mt-1.5">
+                    <span class="text-gray-500">% utilização do limite</span>
+                    <span class="font-bold text-right" id="rot-det-util">—</span>
+                  </div>
+                  <div class="flex justify-between gap-2 text-xs mt-1.5">
+                    <span class="text-gray-500">Data de referência</span>
+                    <span class="font-bold text-right" id="rot-det-data">—</span>
+                  </div>
+                </div>
+
+                <!-- Análise para renovação -->
+                <div class="bg-white p-4 rounded border">
+                  <p class="text-[10px] text-gray-500 uppercase font-bold mb-2 tracking-wider">Análise para Renovação</p>
+                  <div class="space-y-1.5 text-xs">
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Renda Comprovada</span><span class="font-bold text-right" id="rot-det-renda">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Comprometimento</span><span class="font-bold text-right" id="rot-det-compr">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Endividamento</span><span class="font-bold text-right" id="rot-det-endiv">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Score</span><span class="font-bold text-right" id="rot-det-score">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Inadimplência (dias)</span><span class="font-bold text-right" id="rot-det-inad">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Tempo de associado</span><span class="font-bold text-right" id="rot-det-tempo">—</span></div>
+                    <div class="flex justify-between gap-2 pt-1.5 border-t"><span class="text-gray-500">Saldo Devedor (SCR)</span><span class="font-bold text-right" id="rot-det-scr">—</span></div>
+                  </div>
+                </div>
+
+                <!-- Limites do associado na base -->
+                <div class="bg-white p-4 rounded border">
+                  <p class="text-[10px] text-gray-500 uppercase font-bold mb-2 tracking-wider">Limites (Base de Análise)</p>
+                  <div class="space-y-1.5 text-xs">
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Limite Atual (Cheque Especial)</span><span class="font-bold text-right" id="rot-det-limbase">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Sugestão do Motor</span><span class="font-bold text-right text-secondary" id="rot-det-sug">—</span></div>
+                    <div class="flex justify-between gap-2"><span class="text-gray-500">Status</span><span class="font-bold text-right" id="rot-det-status">—</span></div>
+                  </div>
+                  <p id="rot-det-semassoc" class="hidden text-[11px] text-red-500 mt-2">Conta sem associado correspondente na base importada.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </main>
   </div>
@@ -800,16 +951,19 @@
   </div>
 
   <script>
-    let appData = { associados: [], uploads: [], protocolos: [], estatisticas: {} };
+    let appData = { associados: [], uploads: [], protocolos: [], rotativos: [], estatisticas: {} };
     let selectedAssociateId = null;
+    let selectedRotativoConta = null;
     let filtroCarteira = '';
     let filtroProduto = '';
     let filtroOperacao = '';
     let filtroStatus = '';
     let filtroRetorno = '';
     let filtroBusca = '';
+    let filtroBuscaRot = '';
     let edicaoBloqueada = false;
     let buscaTimer = null;
+    let buscaRotTimer = null;
     const MAX_LISTA = 200; // limite de linhas exibidas por vez (bases grandes)
     let podeImportar = true; // SEDE (ou modos fail-safe) podem importar listas
 
@@ -829,6 +983,7 @@
       document.getElementById('tab-gestao-limites').classList.add('hidden');
       document.getElementById('tab-relatorios').classList.add('hidden');
       document.getElementById('tab-retorno-robo').classList.add('hidden');
+      document.getElementById('tab-rotativos').classList.add('hidden');
 
       document.getElementById('tab-' + tabId).classList.remove('hidden');
 
@@ -837,12 +992,14 @@
         'upload-listas': 'Upload de Listas Central',
         'gestao-limites': 'Gestão de Limites de Crédito',
         'relatorios': 'Relatórios',
-        'retorno-robo': 'Retorno do Robô'
+        'retorno-robo': 'Retorno do Robô',
+        'rotativos': 'Gestão de Limites Rotativos'
       };
       document.getElementById('current-tab-title').innerText = titles[tabId];
 
       if (tabId === 'relatorios') { atualizarContagemRelatorio(); renderRelatorioPaineis(); }
       if (tabId === 'retorno-robo') renderRetornoRobo();
+      if (tabId === 'rotativos') renderRotativos();
     }
 
     function loadAllData() {
@@ -899,7 +1056,8 @@
         estatisticas: { totalPendente: 0, limiteContaTotal: 0, totalNovoLimite: 0, totalAssociados: 0 },
         protocolos: [],
         uploads: [],
-        associados: []
+        associados: [],
+        rotativos: []
       };
       renderAll();
       document.getElementById('loading').classList.add('hidden');
@@ -925,6 +1083,11 @@
       if (btnRel) btnRel.classList.toggle('hidden', !podeImportar);
       const btnRobo = document.getElementById('btn-retorno-robo');
       if (btnRobo) btnRobo.classList.toggle('hidden', !podeImportar);
+
+      // Rotativos: a aba é visível para todos (agência vê os seus), mas só a
+      // SEDE pode importar o relatório.
+      const rotImport = document.getElementById('rot-import-card');
+      if (rotImport) rotImport.classList.toggle('hidden', !podeImportar);
 
       // Histórico de importações: some para agência; a distribuição ocupa a largura toda
       const cardImp = document.getElementById('card-ultimas-importacoes');
@@ -1026,6 +1189,7 @@
       atualizarContagemRelatorio();
       renderRetornoRobo();
       renderResumoRetornoRelatorio();
+      renderRotativos();
     }
 
     // Renderiza a lista de associados: aplica filtros + busca, limita a exibição
@@ -2148,9 +2312,187 @@
       }
     }
 
+    // ================= ROTATIVOS =================
+    function onBuscaRotInput() {
+      clearTimeout(buscaRotTimer);
+      buscaRotTimer = setTimeout(function() {
+        filtroBuscaRot = document.getElementById('rot-busca').value || '';
+        renderRotativos();
+      }, 200);
+    }
+
+    function filtrarRotativos() {
+      const b = filtroBuscaRot.trim().toLowerCase();
+      return (appData.rotativos || []).filter(function(r) {
+        return !b ||
+          String(r.nome || '').toLowerCase().indexOf(b) !== -1 ||
+          String(r.cpfCnpj || '').toLowerCase().indexOf(b) !== -1 ||
+          String(r.conta || '').toLowerCase().indexOf(b) !== -1;
+      });
+    }
+
+    function renderRotativos() {
+      if (!document.getElementById('tab-rotativos')) return;
+      const lista = filtrarRotativos();
+      const temDados = (appData.rotativos || []).length > 0;
+
+      document.getElementById('rot-vazio').classList.toggle('hidden', temDados);
+      document.getElementById('rot-painel').classList.toggle('hidden', !temDados);
+
+      // Cards de resumo (refletem a busca aplicada)
+      let casos = 0, limite = 0, lib = 0, amort = 0, juros = 0;
+      lista.forEach(function(r) {
+        casos++;
+        limite += Number(r.limiteAtual) || 0;
+        lib += Number(r.liberacoes) || 0;
+        amort += Number(r.amortizacoes) || 0;
+        juros += Number(r.jurosPagos) || 0;
+      });
+      document.getElementById('rot-card-casos').innerText = casos;
+      document.getElementById('rot-card-limite').innerText = formatCurrency(limite);
+      document.getElementById('rot-card-lib').innerText = formatCurrency(lib);
+      document.getElementById('rot-card-amort').innerText = formatCurrency(amort);
+      document.getElementById('rot-card-juros').innerText = formatCurrency(juros);
+
+      const tbody = document.getElementById('rot-table-body');
+      if (!tbody) return;
+      document.getElementById('rot-count').innerText = casos;
+
+      if (casos === 0) {
+        tbody.innerHTML = "<tr><td colspan='4' class='p-6 text-center text-xs text-gray-400'>Nenhuma conta encontrada.</td></tr>";
+      } else {
+        const MAX = 200;
+        const vis = lista.slice(0, MAX);
+        const linhas = vis.map(function(r) {
+          const sel = selectedRotativoConta === r.conta;
+          const semAssoc = r.temAssociado ? "" : "<span class='text-[10px] text-red-500'>sem associado na base</span>";
+          return "<tr onclick=\"selectRotativo('" + String(r.conta).replace(/'/g, "\\'") + "')\" class='cursor-pointer transition " +
+              (sel ? "bg-orange-50 border-l-4 border-secondary" : "hover:bg-gray-50") + "'>" +
+            "<td class='p-3'><div class='flex flex-col gap-0.5'><span class='font-bold text-primary'>" + (r.nome || '—') + "</span>" +
+              "<span class='text-[10px] text-gray-500'>Conta: " + (r.conta || '—') + (r.cpfCnpj ? " · CPF: " + r.cpfCnpj : "") + "</span>" + semAssoc + "</div></td>" +
+            "<td class='p-3 text-right font-semibold'>" + formatCurrency(r.limiteAtual) + "</td>" +
+            "<td class='p-3 text-right text-green-700'>" + formatCurrency(r.liberacoes) + "</td>" +
+            "<td class='p-3 text-right text-blue-700'>" + formatCurrency(r.amortizacoes) + "</td>" +
+          "</tr>";
+        });
+        if (lista.length > MAX) {
+          linhas.push("<tr><td colspan='4' class='p-3 text-center text-[11px] text-gray-400'>Mostrando os primeiros " + MAX + " de " + lista.length + " — refine pela busca.</td></tr>");
+        }
+        tbody.innerHTML = linhas.join('');
+      }
+
+      // Mantém o detalhe aberto se a conta selecionada ainda está na lista
+      if (selectedRotativoConta && lista.some(function(r) { return r.conta === selectedRotativoConta; })) {
+        selectRotativo(selectedRotativoConta);
+      } else {
+        selectedRotativoConta = null;
+        document.getElementById('rot-detalhe').classList.add('hidden');
+        document.getElementById('rot-no-sel').classList.remove('hidden');
+      }
+    }
+
+    function selectRotativo(conta) {
+      const r = (appData.rotativos || []).find(function(x) { return x.conta === conta; });
+      if (!r) return;
+      selectedRotativoConta = conta;
+      renderRotativos(); // atualiza o destaque da linha selecionada
+
+      document.getElementById('rot-no-sel').classList.add('hidden');
+      document.getElementById('rot-detalhe').classList.remove('hidden');
+
+      const setTxt = function(id, v) { const el = document.getElementById(id); if (el) el.innerText = v; };
+
+      setTxt('rot-det-nome', r.nome || '—');
+      setTxt('rot-det-meta', "Conta: " + (r.conta || '—') + (r.cpfCnpj ? " · CPF: " + r.cpfCnpj : ""));
+      setTxt('rot-det-carteira', "Carteira: " + (r.microSegmento || '—') + (r.agencia ? "  ·  " + r.agencia : ""));
+
+      setTxt('rot-det-limite', formatCurrency(r.limiteAtual));
+      setTxt('rot-det-lib', formatCurrency(r.liberacoes));
+      setTxt('rot-det-amort', formatCurrency(r.amortizacoes));
+      setTxt('rot-det-juros', formatCurrency(r.jurosPagos));
+
+      const saldo = (Number(r.liberacoes) || 0) - (Number(r.amortizacoes) || 0);
+      setTxt('rot-det-saldo', formatCurrency(saldo));
+      const util = (Number(r.limiteAtual) || 0) > 0 ? (saldo / r.limiteAtual) * 100 : 0;
+      setTxt('rot-det-util', (util > 0 ? util.toFixed(1) : '0') + '%');
+      setTxt('rot-det-data', r.dataRelatorio || '—');
+
+      setTxt('rot-det-renda', r.rendaComprovada ? formatCurrency(r.rendaComprovada) : '—');
+      setTxt('rot-det-compr', r.comprometimentoSCR ? (Number(r.comprometimentoSCR).toFixed(0) + '%') : '—');
+      setTxt('rot-det-endiv', r.endividamento ? (Number(r.endividamento).toFixed(0) + '%') : '—');
+      setTxt('rot-det-score', r.score || '—');
+      setTxt('rot-det-inad', (r.inadimplenciaDias || 0) + ' dia(s)');
+      setTxt('rot-det-tempo', (r.tempoAssociadoAnos || 0) + ' ano(s)');
+      setTxt('rot-det-scr', formatCurrency(r.saldoDevedor));
+
+      setTxt('rot-det-limbase', formatCurrency(r.limiteBase));
+      setTxt('rot-det-sug', r.sugestaoMotor ? formatCurrency(r.sugestaoMotor) : '—');
+      setTxt('rot-det-status', r.status || '—');
+
+      document.getElementById('rot-det-semassoc').classList.toggle('hidden', !!r.temAssociado);
+    }
+
+    // Importa o relatório de rotativos (em lotes, para arquivos grandes)
+    function handleRotativoSelecionado(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const isGAS = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
+      if (!isGAS) { alert('Importação disponível apenas no ambiente Google Sheets.'); return; }
+
+      mostrarRotStatus('Lendo "' + file.name + '"...');
+      lerRetornoComoTabela(file).then(function(conteudo) {
+        return processarRotativosEmLotes(file.name, conteudo);
+      }).catch(function(err) {
+        esconderRotStatus();
+        alert('Não foi possível ler o arquivo: ' + err);
+      });
+      event.target.value = '';
+    }
+
+    async function processarRotativosEmLotes(nomeArquivo, conteudo) {
+      conteudo = String(conteudo).replace(/^﻿/, '');
+      const linhas = conteudo.split(/\r?\n/);
+      const header = linhas[0] || '';
+      const dados = [];
+      for (let i = 1; i < linhas.length; i++) { if (linhas[i].trim() !== '') dados.push(linhas[i]); }
+      if (!header.trim()) { esconderRotStatus(); alert('Arquivo vazio.'); return; }
+
+      const CHUNK = 800;
+      const totalLotes = Math.max(1, Math.ceil(dados.length / CHUNK));
+      let totalReg = 0;
+      try {
+        for (let i = 0; i < totalLotes; i++) {
+          mostrarRotStatus('Processando rotativos — lote ' + (i + 1) + '/' + totalLotes + '...');
+          const lote = header + '\n' + dados.slice(i * CHUNK, (i + 1) * CHUNK).join('\n');
+          const res = await runGAS('importarRotativos', nomeArquivo, lote, i === 0);
+          if (!res || !res.success) {
+            esconderRotStatus();
+            alert('Falha ao importar os rotativos: ' + ((res && res.error) || 'erro'));
+            return;
+          }
+          totalReg += res.registros || 0;
+        }
+        esconderRotStatus();
+        alert('Relatório de rotativos importado: ' + totalReg + ' registro(s).');
+        loadAllData();
+      } catch (err) {
+        esconderRotStatus();
+        alert('Falha de comunicação: ' + err);
+      }
+    }
+
+    function mostrarRotStatus(txt) {
+      const bar = document.getElementById('rot-upload-status');
+      document.getElementById('rot-upload-status-text').innerText = txt;
+      bar.classList.remove('hidden'); bar.classList.add('flex');
+    }
+    function esconderRotStatus() {
+      const bar = document.getElementById('rot-upload-status');
+      bar.classList.add('hidden'); bar.classList.remove('flex');
+    }
+
     function formatCurrency(value) {
       return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    }
-  </script>
+    }</script>
 </body>
 </html>
