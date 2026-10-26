@@ -62,9 +62,11 @@ var COLUNAS_ASSOCIADOS = [
 ];
 
 // Colunas da aba Rotativos (relatório de crédito rotativo). O vínculo com o
-// associado é feito pela CONTA. Liberações/Amortizações/Juros vêm do relatório.
+// associado é feito pela CONTA. O "limite" do rotativo é o Valor do Contrato.
 var COLUNAS_ROTATIVOS = [
-  "ID", "Conta", "Limite Atual", "Liberações", "Amortizações", "Juros Pagos", "Data Relatório"
+  "Conta", "Associado", "Gerente Carteira", "Contrato", "Modalidade",
+  "Data Vencimento", "Valor Contrato", "Valores Liberados", "Soma Amort Capital",
+  "Juros Pagos", "Taxa Juros", "Indexador", "Renda Mensal", "Tipo Pessoa", "Agencia Relatorio"
 ];
 
 // Colunas da aba Retornos (resultado do robô/RPA). Produto/Operação são
@@ -865,35 +867,50 @@ function carregarRotativos(ss, associados, verTudo) {
     if (!atual || (ehConta && normalizarCol(atual.produto) === "cartao")) porConta[k] = a;
   });
 
-  var cId = mapa["id"], cConta = mapa["conta"], cLim = mapa["limite atual"],
-      cLib = mapa["liberacoes"], cAmort = mapa["amortizacoes"],
-      cJuros = mapa["juros pagos"], cData = mapa["data relatorio"];
+  var cConta = mapa["conta"], cAssoc = mapa["associado"], cGer = mapa["gerente carteira"],
+      cContr = mapa["contrato"], cModal = mapa["modalidade"], cVenc = mapa["data vencimento"],
+      cValor = mapa["valor contrato"], cLib = mapa["valores liberados"],
+      cAmort = mapa["soma amort capital"], cJuros = mapa["juros pagos"], cTaxa = mapa["taxa juros"],
+      cIndex = mapa["indexador"], cRenda = mapa["renda mensal"], cTipo = mapa["tipo pessoa"],
+      cAgRel = mapa["agencia relatorio"];
 
+  var get = function(r, c) { return (c === undefined) ? "" : r[c]; };
+  var seq = 0;
   var lista = [];
   for (var i = 1; i < dados.length; i++) {
     var r = dados[i];
-    var contaRaw = cConta !== undefined ? r[cConta] : "";
+    var contaRaw = get(r, cConta);
     var kConta = normalizarConta(contaRaw);
     if (!kConta) continue;
 
     var a = porConta[kConta];
     if (!a && !verTudo) continue; // agência só vê contas da sua carteira
 
+    var rendaRel = Number(get(r, cRenda)) || 0;
     lista.push({
-      id: cId !== undefined ? r[cId] : "",
+      rid: ++seq,
       conta: String(contaRaw).trim(),
-      limiteAtual: Number(cLim !== undefined ? r[cLim] : 0) || 0,
-      liberacoes: Number(cLib !== undefined ? r[cLib] : 0) || 0,
-      amortizacoes: Number(cAmort !== undefined ? r[cAmort] : 0) || 0,
-      jurosPagos: Number(cJuros !== undefined ? r[cJuros] : 0) || 0,
-      dataRelatorio: cData !== undefined ? String(r[cData] || "").trim() : "",
+      // "limite" do rotativo = Valor do Contrato
+      limiteAtual: Number(get(r, cValor)) || 0,
+      valorContrato: Number(get(r, cValor)) || 0,
+      liberacoes: Number(get(r, cLib)) || 0,
+      amortizacoes: Number(get(r, cAmort)) || 0,
+      jurosPagos: Number(get(r, cJuros)) || 0,
+      modalidade: String(get(r, cModal) || "").trim(),
+      vencimento: String(get(r, cVenc) || "").trim(),
+      taxaJuros: String(get(r, cTaxa) || "").trim(),
+      indexador: String(get(r, cIndex) || "").trim(),
+      contrato: String(get(r, cContr) || "").trim(),
+      gerente: String(get(r, cGer) || "").trim(),
+      tipoPessoa: String(get(r, cTipo) || "").trim(),
       // Dados do associado (base) para análise da renovação
       temAssociado: !!a,
-      nome: a ? a.nome : "(associado não encontrado na base)",
+      nome: a ? a.nome : (String(get(r, cAssoc) || "").trim() || "(associado não encontrado na base)"),
       cpfCnpj: a ? a.cpfCnpj : "",
-      agencia: a ? a.agencia : "",
+      agencia: a ? a.agencia : String(get(r, cAgRel) || "").trim(),
       microSegmento: a ? a.microSegmento : "",
-      rendaComprovada: a ? a.rendaComprovada : 0,
+      // Renda vem da base; se a conta não está na base, usa a renda do relatório
+      rendaComprovada: (a && a.rendaComprovada) ? a.rendaComprovada : rendaRel,
       comprometimentoSCR: a ? a.comprometimentoSCR : 0,
       endividamento: a ? a.endividamento : 0,
       score: a ? a.score : 0,
@@ -933,16 +950,26 @@ function importarRotativos(nomeArquivo, conteudoTexto, primeiroLote) {
     var cab = linhas[0].split(delim).map(function(c) { return c.replace(/^["']|["']$/g, '').trim(); });
 
     // Mapeia colunas por nome, tolerando variações de rótulo do relatório
-    var idx = { id: -1, conta: -1, limite: -1, lib: -1, amort: -1, juros: -1, data: -1 };
+    var idx = { conta: -1, assoc: -1, ger: -1, contr: -1, modal: -1, venc: -1,
+                valor: -1, lib: -1, amort: -1, juros: -1, taxa: -1, index: -1,
+                renda: -1, tipo: -1, ag: -1 };
     cab.forEach(function(c, i) {
       var x = normalizarCol(c);
       if (idx.conta === -1 && x === "conta") idx.conta = i;
-      else if (idx.limite === -1 && (x.indexOf("limite") !== -1)) idx.limite = i;
-      else if (idx.lib === -1 && (x.indexOf("liberac") !== -1 || x.indexOf("liberaç") !== -1)) idx.lib = i;
-      else if (idx.amort === -1 && x.indexOf("amortiz") !== -1) idx.amort = i;
-      else if (idx.juros === -1 && x.indexOf("juros") !== -1) idx.juros = i;
-      else if (idx.data === -1 && (x.indexOf("data") !== -1 || x.indexOf("referencia") !== -1 || x.indexOf("competencia") !== -1)) idx.data = i;
-      else if (idx.id === -1 && x === "id") idx.id = i;
+      else if (idx.assoc === -1 && x === "associado") idx.assoc = i;
+      else if (idx.ger === -1 && x.indexOf("gerente") !== -1) idx.ger = i;
+      else if (idx.valor === -1 && x.indexOf("valor contrato") !== -1) idx.valor = i;
+      else if (idx.contr === -1 && x.indexOf("contrato") !== -1) idx.contr = i;
+      else if (idx.modal === -1 && x.indexOf("modalidade") !== -1) idx.modal = i;
+      else if (idx.venc === -1 && x.indexOf("vencimento") !== -1) idx.venc = i;
+      else if (idx.lib === -1 && (x.indexOf("liberad") !== -1 || x.indexOf("liberac") !== -1)) idx.lib = i;
+      else if (idx.amort === -1 && x.indexOf("amort") !== -1) idx.amort = i;
+      else if (idx.juros === -1 && x.indexOf("juros") !== -1 && x.indexOf("pago") !== -1) idx.juros = i;
+      else if (idx.taxa === -1 && x.indexOf("taxa") !== -1 && x.indexOf("juros") !== -1) idx.taxa = i;
+      else if (idx.index === -1 && x.indexOf("indexador") !== -1) idx.index = i;
+      else if (idx.renda === -1 && x.indexOf("renda") !== -1 && x.indexOf("mensal") !== -1) idx.renda = i;
+      else if (idx.tipo === -1 && x.indexOf("tipo") !== -1 && x.indexOf("pessoa") !== -1) idx.tipo = i;
+      else if (idx.ag === -1 && x === "agencia") idx.ag = i;
     });
 
     if (idx.conta === -1) {
@@ -968,13 +995,21 @@ function importarRotativos(nomeArquivo, conteudoTexto, primeiroLote) {
       var conta = pega(cols, idx.conta);
       if (!String(conta).trim()) continue;
       novas.push([
-        pega(cols, idx.id),
         conta,
-        parseDinheiro(pega(cols, idx.limite)),
+        pega(cols, idx.assoc),
+        pega(cols, idx.ger),
+        pega(cols, idx.contr),
+        pega(cols, idx.modal),
+        pega(cols, idx.venc),
+        parseDinheiro(pega(cols, idx.valor)),
         parseDinheiro(pega(cols, idx.lib)),
         parseDinheiro(pega(cols, idx.amort)),
         parseDinheiro(pega(cols, idx.juros)),
-        pega(cols, idx.data)
+        pega(cols, idx.taxa),
+        pega(cols, idx.index),
+        parseDinheiro(pega(cols, idx.renda)),
+        pega(cols, idx.tipo),
+        pega(cols, idx.ag)
       ]);
     }
 
