@@ -836,39 +836,15 @@
             <p class="text-gray-500 text-sm">Movimentação do crédito rotativo e informações para análise da renovação do limite.</p>
           </div>
 
-          <!-- Cards de resumo -->
-          <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-primary">
-              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Contas</span>
-              <div class="text-2xl font-black text-gray-900 mt-1" id="rot-card-casos">0</div>
-            </div>
-            <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-gray-400">
-              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Valor Contratado</span>
-              <div class="text-xl font-black text-gray-700 mt-1" id="rot-card-limite">R$ 0</div>
-            </div>
-            <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-green-600">
-              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Liberações</span>
-              <div class="text-xl font-black text-green-700 mt-1" id="rot-card-lib">R$ 0</div>
-            </div>
-            <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-blue-600">
-              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Amortizações</span>
-              <div class="text-xl font-black text-blue-700 mt-1" id="rot-card-amort">R$ 0</div>
-            </div>
-            <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-amber-500">
-              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Juros Pagos</span>
-              <div class="text-xl font-black text-amber-600 mt-1" id="rot-card-juros">R$ 0</div>
-            </div>
-          </div>
-
           <!-- Estado vazio -->
           <div id="rot-vazio" class="bg-white p-8 rounded-lg border border-outline-variant shadow-sm text-center text-sm text-gray-400">
             Nenhum rotativo disponível. A SEDE deve importar o relatório de rotativos para começar.
           </div>
 
           <!-- Two-pane: lista + detalhamento -->
-          <div id="rot-painel" class="hidden flex border border-outline-variant rounded-lg bg-white overflow-hidden h-[calc(100vh-300px)] min-h-[520px]">
+          <div id="rot-painel" class="hidden flex border border-outline-variant rounded-lg bg-white overflow-hidden h-[calc(100vh-220px)] min-h-[560px]">
             <!-- Lista -->
-            <div class="w-[60%] flex flex-col border-r border-outline-variant h-full">
+            <div class="w-[38%] flex flex-col border-r border-outline-variant h-full">
               <div class="p-4 border-b border-outline-variant bg-gray-50 space-y-2">
                 <div class="flex justify-between items-center gap-2">
                   <h3 class="font-bold text-primary text-sm">Contas com Rotativo</h3>
@@ -889,10 +865,9 @@
                 <table class="w-full text-left">
                   <thead class="sticky top-0 bg-primary text-white text-xs uppercase font-bold z-10">
                     <tr>
-                      <th class="p-3">Associado / Conta</th>
-                      <th class="p-3 text-right">Valor Contrato</th>
-                      <th class="p-3 text-right">Liberações</th>
-                      <th class="p-3 text-right">Amortizações</th>
+                      <th class="p-3">Associado</th>
+                      <th class="p-3 text-right">Limite</th>
+                      <th class="p-3 text-center">Vencim.</th>
                     </tr>
                   </thead>
                   <tbody id="rot-table-body" class="divide-y divide-gray-100 text-sm"></tbody>
@@ -900,7 +875,7 @@
               </div>
             </div>
             <!-- Detalhamento -->
-            <div class="w-[40%] bg-surface-container-low p-6 flex flex-col h-full overflow-y-auto space-y-5">
+            <div class="w-[62%] bg-surface-container-low p-6 flex flex-col h-full overflow-y-auto space-y-5">
               <div id="rot-no-sel" class="h-full flex flex-col items-center justify-center text-center p-6 text-gray-500">
                 <span class="material-symbols-outlined text-4xl mb-2">autorenew</span>
                 <p class="font-bold text-sm">Selecione uma conta da lista</p>
@@ -2374,27 +2349,12 @@
       document.getElementById('rot-vazio').classList.toggle('hidden', temDados);
       document.getElementById('rot-painel').classList.toggle('hidden', !temDados);
 
-      // Cards de resumo (refletem a busca aplicada)
-      let casos = 0, limite = 0, lib = 0, amort = 0, juros = 0;
-      lista.forEach(function(r) {
-        casos++;
-        limite += Number(r.limiteAtual) || 0;
-        lib += Number(r.liberacoes) || 0;
-        amort += Number(r.amortizacoes) || 0;
-        juros += Number(r.jurosPagos) || 0;
-      });
-      document.getElementById('rot-card-casos').innerText = casos;
-      document.getElementById('rot-card-limite').innerText = formatCurrency(limite);
-      document.getElementById('rot-card-lib').innerText = formatCurrency(lib);
-      document.getElementById('rot-card-amort').innerText = formatCurrency(amort);
-      document.getElementById('rot-card-juros').innerText = formatCurrency(juros);
-
       const tbody = document.getElementById('rot-table-body');
       if (!tbody) return;
-      document.getElementById('rot-count').innerText = casos;
+      document.getElementById('rot-count').innerText = lista.length;
 
-      if (casos === 0) {
-        tbody.innerHTML = "<tr><td colspan='4' class='p-6 text-center text-xs text-gray-400'>Nenhuma conta encontrada.</td></tr>";
+      if (lista.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='3' class='p-6 text-center text-xs text-gray-400'>Nenhuma conta encontrada.</td></tr>";
       } else {
         const MAX = 200;
         const vis = lista.slice(0, MAX);
@@ -2404,14 +2364,13 @@
           return "<tr onclick=\"selectRotativo(" + r.rid + ")\" class='cursor-pointer transition " +
               (sel ? "bg-orange-50 border-l-4 border-secondary" : "hover:bg-gray-50") + "'>" +
             "<td class='p-3'><div class='flex flex-col gap-0.5'><span class='font-bold text-primary'>" + (r.nome || '—') + "</span>" +
-              "<span class='text-[10px] text-gray-500'>Conta: " + (r.conta || '—') + (r.cpfCnpj ? " · CPF: " + r.cpfCnpj : "") + "</span>" + semAssoc + "</div></td>" +
+              "<span class='text-[10px] text-gray-500'>Conta: " + (r.conta || '—') + "</span>" + semAssoc + "</div></td>" +
             "<td class='p-3 text-right font-semibold'>" + formatCurrency(r.limiteAtual) + "</td>" +
-            "<td class='p-3 text-right text-green-700'>" + formatCurrency(r.liberacoes) + "</td>" +
-            "<td class='p-3 text-right text-blue-700'>" + formatCurrency(r.amortizacoes) + "</td>" +
+            "<td class='p-3 text-center text-gray-600'>" + formatarDataBR(r.vencimento) + "</td>" +
           "</tr>";
         });
         if (lista.length > MAX) {
-          linhas.push("<tr><td colspan='4' class='p-3 text-center text-[11px] text-gray-400'>Mostrando os primeiros " + MAX + " de " + lista.length + " — refine pela busca.</td></tr>");
+          linhas.push("<tr><td colspan='3' class='p-3 text-center text-[11px] text-gray-400'>Mostrando os primeiros " + MAX + " de " + lista.length + " — refine pela busca.</td></tr>");
         }
         tbody.innerHTML = linhas.join('');
       }
@@ -2455,8 +2414,8 @@
       const util = (Number(r.limiteAtual) || 0) > 0 ? (saldo / r.limiteAtual) * 100 : 0;
       setTxt('rot-det-util', (util > 0 ? util.toFixed(1) : '0') + '%');
       setTxt('rot-det-modal', r.modalidade || '—');
-      setTxt('rot-det-venc', r.vencimento || '—');
-      setTxt('rot-det-taxa', r.taxaJuros || '—');
+      setTxt('rot-det-venc', formatarDataBR(r.vencimento) || '—');
+      setTxt('rot-det-taxa', r.taxaJuros ? (r.taxaJuros + '% a.m.') : '—');
       setTxt('rot-det-index', r.indexador || '—');
       setTxt('rot-det-contrato', r.contrato || '—');
 
@@ -2489,7 +2448,7 @@
         return [
           r.agencia || '', r.conta || '', r.nome || '', r.modalidade || '', r.contrato || '',
           Number(r.limiteAtual) || 0, Number(r.liberacoes) || 0, Number(r.amortizacoes) || 0,
-          Number(r.jurosPagos) || 0, saldo, r.taxaJuros || '', r.vencimento || '',
+          Number(r.jurosPagos) || 0, saldo, r.taxaJuros || '', formatarDataBR(r.vencimento),
           Number(r.rendaComprovada) || 0, Number(r.comprometimentoSCR) || 0,
           Number(r.endividamento) || 0, r.score || '', r.status || ''
         ];
@@ -2550,12 +2509,12 @@
       for (let i = 1; i < linhas.length; i++) { if (linhas[i].trim() !== '') dados.push(linhas[i]); }
       if (!header.trim()) { esconderBaseStatus(); alert('Arquivo vazio.'); return; }
 
-      const CHUNK = 500;
+      const CHUNK = 200; // base tem ~220 colunas; lote menor evita HTTP 413
       const totalLotes = Math.max(1, Math.ceil(dados.length / CHUNK));
       let totalReg = 0;
       try {
         for (let i = 0; i < totalLotes; i++) {
-          mostrarBaseStatus('Processando base — lote ' + (i + 1) + '/' + totalLotes + '...');
+          mostrarBaseStatus('Processando base — lote ' + (i + 1) + '/' + totalLotes + ' (' + dados.length + ' linhas)...');
           const lote = header + '\n' + dados.slice(i * CHUNK, (i + 1) * CHUNK).join('\n');
           const res = await runGAS('importarBaseAssociados', nomeArquivo, lote, i === 0);
           if (!res || !res.success) {
@@ -2647,6 +2606,30 @@
 
     function formatCurrency(value) {
       return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    // Normaliza datas para dd/mm/aaaa (serial do Excel, ISO ou dd/mm/aaaa)
+    function formatarDataBR(v) {
+      if (v === null || v === undefined) return '';
+      let s = String(v).trim();
+      if (s === '' || s === '-') return '';
+      const pad = function(n) { return ('0' + n).slice(-2); };
+      // Número de série do Excel (ex.: 46363)
+      if (/^\d+(\.\d+)?$/.test(s)) {
+        const n = parseFloat(s);
+        if (n > 20000 && n < 100000) {
+          const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+          if (!isNaN(d.getTime())) return pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear();
+        }
+        return s;
+      }
+      // ISO aaaa-mm-dd
+      const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (iso) return iso[3] + '/' + iso[2] + '/' + iso[1];
+      // dd/mm/aaaa, dd/mm/aa ou d/m/aaaa
+      const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+      if (br) { let yy = br[3]; if (yy.length === 2) yy = '20' + yy; return pad(br[1]) + '/' + pad(br[2]) + '/' + yy; }
+      return s;
     }</script>
 </body>
 </html>
