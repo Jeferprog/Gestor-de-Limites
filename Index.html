@@ -792,7 +792,7 @@
             <div class="flex-1">
               <h4 class="font-bold text-primary">Importar relatório de rotativos</h4>
               <p class="text-xs text-gray-500 mt-1">Substitui o relatório anterior. O vínculo com o associado é feito pela <b>Conta</b>. Aceita .xls, .xlsx ou .csv.</p>
-              <p class="text-[11px] text-gray-400 mt-1">Colunas esperadas: Conta, Limite Atual, Liberações, Amortizações, Juros Pagos, Data (referência).</p>
+              <p class="text-[11px] text-gray-400 mt-1">O relatório deve conter as colunas de Agência, Conta, Associado, Valor Contrato, Valores Liberados, Soma Amort. Capital, Juros Pagos, Modalidade, Data Vencimento e Taxa de Juros.</p>
             </div>
             <input type="file" id="rot-file-input" accept=".csv,.txt,.tsv,.xls,.xlsx,.xlsm" class="hidden" onchange="handleRotativoSelecionado(event)"/>
             <button onclick="document.getElementById('rot-file-input').click()" class="bg-secondary text-white font-bold py-2.5 px-5 rounded-lg hover:brightness-105 flex items-center gap-2 shrink-0">
@@ -811,7 +811,7 @@
               <div class="text-2xl font-black text-gray-900 mt-1" id="rot-card-casos">0</div>
             </div>
             <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-gray-400">
-              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Limite Atual</span>
+              <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Valor Contratado</span>
               <div class="text-xl font-black text-gray-700 mt-1" id="rot-card-limite">R$ 0</div>
             </div>
             <div class="bg-white p-4 rounded-lg border border-outline-variant shadow-sm border-l-4 border-green-600">
@@ -840,7 +840,12 @@
               <div class="p-4 border-b border-outline-variant bg-gray-50 space-y-2">
                 <div class="flex justify-between items-center gap-2">
                   <h3 class="font-bold text-primary text-sm">Contas com Rotativo</h3>
-                  <span class="text-xs text-gray-500" id="rot-count">0</span>
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs text-gray-500" id="rot-count">0</span>
+                    <button onclick="gerarRotativosXLS()" title="Exportar (respeita a busca)" class="flex items-center gap-1 text-xs font-bold text-primary border border-primary/30 rounded px-2 py-1 hover:bg-primary/5">
+                      <span class="material-symbols-outlined text-sm">download</span> XLS
+                    </button>
+                  </div>
                 </div>
                 <div class="relative">
                   <span class="material-symbols-outlined text-gray-400 text-base absolute left-2 top-1/2 -translate-y-1/2">search</span>
@@ -853,7 +858,7 @@
                   <thead class="sticky top-0 bg-primary text-white text-xs uppercase font-bold z-10">
                     <tr>
                       <th class="p-3">Associado / Conta</th>
-                      <th class="p-3 text-right">Limite Atual</th>
+                      <th class="p-3 text-right">Valor Contrato</th>
                       <th class="p-3 text-right">Liberações</th>
                       <th class="p-3 text-right">Amortizações</th>
                     </tr>
@@ -879,8 +884,8 @@
                 <div class="bg-white p-4 rounded border">
                   <p class="text-[10px] text-gray-500 uppercase font-bold mb-3 tracking-wider">Movimentação do Rotativo</p>
                   <div class="grid grid-cols-2 gap-3 text-xs">
-                    <div class="bg-gray-50 rounded p-2"><span class="text-gray-500 block">Limite Atual</span><span class="font-black text-gray-800 text-sm" id="rot-det-limite">—</span></div>
-                    <div class="bg-green-50 rounded p-2"><span class="text-green-700 block">Liberações</span><span class="font-black text-green-700 text-sm" id="rot-det-lib">—</span></div>
+                    <div class="bg-gray-50 rounded p-2"><span class="text-gray-500 block">Valor do Contrato</span><span class="font-black text-gray-800 text-sm" id="rot-det-limite">—</span></div>
+                    <div class="bg-green-50 rounded p-2"><span class="text-green-700 block">Valores Liberados</span><span class="font-black text-green-700 text-sm" id="rot-det-lib">—</span></div>
                     <div class="bg-blue-50 rounded p-2"><span class="text-blue-700 block">Amortizações</span><span class="font-black text-blue-700 text-sm" id="rot-det-amort">—</span></div>
                     <div class="bg-amber-50 rounded p-2"><span class="text-amber-700 block">Juros Pagos</span><span class="font-black text-amber-600 text-sm" id="rot-det-juros">—</span></div>
                   </div>
@@ -889,13 +894,14 @@
                     <span class="font-bold text-right" id="rot-det-saldo">—</span>
                   </div>
                   <div class="flex justify-between gap-2 text-xs mt-1.5">
-                    <span class="text-gray-500">% utilização do limite</span>
+                    <span class="text-gray-500">% utilização do contrato</span>
                     <span class="font-bold text-right" id="rot-det-util">—</span>
                   </div>
-                  <div class="flex justify-between gap-2 text-xs mt-1.5">
-                    <span class="text-gray-500">Data de referência</span>
-                    <span class="font-bold text-right" id="rot-det-data">—</span>
-                  </div>
+                  <div class="flex justify-between gap-2 text-xs mt-1.5 pt-1.5 border-t"><span class="text-gray-500">Modalidade</span><span class="font-bold text-right" id="rot-det-modal">—</span></div>
+                  <div class="flex justify-between gap-2 text-xs mt-1.5"><span class="text-gray-500">Data de Vencimento</span><span class="font-bold text-right" id="rot-det-venc">—</span></div>
+                  <div class="flex justify-between gap-2 text-xs mt-1.5"><span class="text-gray-500">Taxa de Juros (a.m.)</span><span class="font-bold text-right" id="rot-det-taxa">—</span></div>
+                  <div class="flex justify-between gap-2 text-xs mt-1.5"><span class="text-gray-500">Indexador</span><span class="font-bold text-right" id="rot-det-index">—</span></div>
+                  <div class="flex justify-between gap-2 text-xs mt-1.5"><span class="text-gray-500">Contrato</span><span class="font-bold text-right" id="rot-det-contrato">—</span></div>
                 </div>
 
                 <!-- Análise para renovação -->
@@ -953,7 +959,7 @@
   <script>
     let appData = { associados: [], uploads: [], protocolos: [], rotativos: [], estatisticas: {} };
     let selectedAssociateId = null;
-    let selectedRotativoConta = null;
+    let selectedRotativoRid = null;
     let filtroCarteira = '';
     let filtroProduto = '';
     let filtroOperacao = '';
@@ -2364,9 +2370,9 @@
         const MAX = 200;
         const vis = lista.slice(0, MAX);
         const linhas = vis.map(function(r) {
-          const sel = selectedRotativoConta === r.conta;
+          const sel = selectedRotativoRid === r.rid;
           const semAssoc = r.temAssociado ? "" : "<span class='text-[10px] text-red-500'>sem associado na base</span>";
-          return "<tr onclick=\"selectRotativo('" + String(r.conta).replace(/'/g, "\\'") + "')\" class='cursor-pointer transition " +
+          return "<tr onclick=\"selectRotativo(" + r.rid + ")\" class='cursor-pointer transition " +
               (sel ? "bg-orange-50 border-l-4 border-secondary" : "hover:bg-gray-50") + "'>" +
             "<td class='p-3'><div class='flex flex-col gap-0.5'><span class='font-bold text-primary'>" + (r.nome || '—') + "</span>" +
               "<span class='text-[10px] text-gray-500'>Conta: " + (r.conta || '—') + (r.cpfCnpj ? " · CPF: " + r.cpfCnpj : "") + "</span>" + semAssoc + "</div></td>" +
@@ -2381,21 +2387,25 @@
         tbody.innerHTML = linhas.join('');
       }
 
-      // Mantém o detalhe aberto se a conta selecionada ainda está na lista
-      if (selectedRotativoConta && lista.some(function(r) { return r.conta === selectedRotativoConta; })) {
-        selectRotativo(selectedRotativoConta);
+      // Mantém o detalhe aberto se o registro selecionado ainda está na lista
+      if (selectedRotativoRid && lista.some(function(r) { return r.rid === selectedRotativoRid; })) {
+        preencherDetalheRotativo(selectedRotativoRid);
       } else {
-        selectedRotativoConta = null;
+        selectedRotativoRid = null;
         document.getElementById('rot-detalhe').classList.add('hidden');
         document.getElementById('rot-no-sel').classList.remove('hidden');
       }
     }
 
-    function selectRotativo(conta) {
-      const r = (appData.rotativos || []).find(function(x) { return x.conta === conta; });
-      if (!r) return;
-      selectedRotativoConta = conta;
+    function selectRotativo(rid) {
+      selectedRotativoRid = rid;
+      preencherDetalheRotativo(rid);
       renderRotativos(); // atualiza o destaque da linha selecionada
+    }
+
+    function preencherDetalheRotativo(rid) {
+      const r = (appData.rotativos || []).find(function(x) { return x.rid === rid; });
+      if (!r) return;
 
       document.getElementById('rot-no-sel').classList.add('hidden');
       document.getElementById('rot-detalhe').classList.remove('hidden');
@@ -2415,7 +2425,11 @@
       setTxt('rot-det-saldo', formatCurrency(saldo));
       const util = (Number(r.limiteAtual) || 0) > 0 ? (saldo / r.limiteAtual) * 100 : 0;
       setTxt('rot-det-util', (util > 0 ? util.toFixed(1) : '0') + '%');
-      setTxt('rot-det-data', r.dataRelatorio || '—');
+      setTxt('rot-det-modal', r.modalidade || '—');
+      setTxt('rot-det-venc', r.vencimento || '—');
+      setTxt('rot-det-taxa', r.taxaJuros || '—');
+      setTxt('rot-det-index', r.indexador || '—');
+      setTxt('rot-det-contrato', r.contrato || '—');
 
       setTxt('rot-det-renda', r.rendaComprovada ? formatCurrency(r.rendaComprovada) : '—');
       setTxt('rot-det-compr', r.comprometimentoSCR ? (Number(r.comprometimentoSCR).toFixed(0) + '%') : '—');
@@ -2430,6 +2444,34 @@
       setTxt('rot-det-status', r.status || '—');
 
       document.getElementById('rot-det-semassoc').classList.toggle('hidden', !!r.temAssociado);
+    }
+
+    function gerarRotativosXLS() {
+      if (typeof XLSX === 'undefined') { alert('Biblioteca de exportação não carregou. Recarregue a página.'); return; }
+      const registros = filtrarRotativos();
+      if (registros.length === 0) { alert('Nenhum rotativo para exportar.'); return; }
+
+      const cabecalho = ['Agência', 'Conta', 'Associado', 'Modalidade', 'Contrato',
+        'Valor Contrato', 'Valores Liberados', 'Amortizações', 'Juros Pagos',
+        'Saldo em Utilização', 'Taxa Juros (a.m.)', 'Data Vencimento',
+        'Renda Comprovada', 'Comprometimento (%)', 'Endividamento (%)', 'Score', 'Status'];
+      const linhas = registros.map(function(r) {
+        const saldo = (Number(r.liberacoes) || 0) - (Number(r.amortizacoes) || 0);
+        return [
+          r.agencia || '', r.conta || '', r.nome || '', r.modalidade || '', r.contrato || '',
+          Number(r.limiteAtual) || 0, Number(r.liberacoes) || 0, Number(r.amortizacoes) || 0,
+          Number(r.jurosPagos) || 0, saldo, r.taxaJuros || '', r.vencimento || '',
+          Number(r.rendaComprovada) || 0, Number(r.comprometimentoSCR) || 0,
+          Number(r.endividamento) || 0, r.score || '', r.status || ''
+        ];
+      });
+      const ws = XLSX.utils.aoa_to_sheet([cabecalho].concat(linhas));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Rotativos');
+      const d = new Date();
+      const nome = 'rotativos_' + d.getFullYear() +
+        ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2) + '.xlsx';
+      XLSX.writeFile(wb, nome);
     }
 
     // Importa o relatório de rotativos (em lotes, para arquivos grandes)
