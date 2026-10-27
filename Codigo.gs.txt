@@ -60,7 +60,8 @@ var COLUNAS_ASSOCIADOS = [
   "Emprest. e Financ. SCR", "Emprest. e Financ. 360 SCR", "Emprest. e Financ. Mensal SCR",
   "Limite SCR", "Saldo Devedor", "Endividamento",
   "Data Base", "Gerente", "Segmentação", "Tipo Pessoa", "Limite Cartão",
-  "Uso Cheque Especial", "SCR 12 Meses", "SCR Uso Limite"
+  "Uso Cheque Especial", "SCR 12 Meses", "SCR Uso Limite",
+  "Média IRC", "Dep Vista", "Valor RDC", "Valor LCA", "Valor Poupança"
 ];
 
 // Colunas da aba Rotativos (relatório de crédito rotativo). O vínculo com o
@@ -219,7 +220,13 @@ function obterDadosCompletos() {
         emprestMensal: Number(g("emprest. e financ. mensal scr")) || 0,
         limiteScr: Number(g("limite scr")) || 0,
         saldoDevedor: Number(g("saldo devedor")) || 0,
-        endividamento: Number(g("endividamento")) || 0
+        endividamento: Number(g("endividamento")) || 0,
+        limiteCartao: Number(g("limite cartao")) || 0,
+        mediaIrc: Number(g("media irc")) || 0,
+        depVista: Number(g("dep vista")) || 0,
+        valorRdc: Number(g("valor rdc")) || 0,
+        valorLca: Number(g("valor lca")) || 0,
+        valorPoupanca: Number(g("valor poupanca")) || 0
       });
     }
 
@@ -896,8 +903,9 @@ function carregarRotativos(ss, associados, verTudo) {
       limiteAtual: Number(get(r, cValor)) || 0,
       valorContrato: Number(get(r, cValor)) || 0,
       liberacoes: Number(get(r, cLib)) || 0,
-      amortizacoes: Number(get(r, cAmort)) || 0,
-      jurosPagos: Number(get(r, cJuros)) || 0,
+      // Amortizações e Juros Pagos vêm negativos na base; exibimos como positivos
+      amortizacoes: Math.abs(Number(get(r, cAmort)) || 0),
+      jurosPagos: Math.abs(Number(get(r, cJuros)) || 0),
       modalidade: String(get(r, cModal) || "").trim(),
       vencimento: formatarDataBR(get(r, cVenc)),
       taxaJuros: String(get(r, cTaxa) || "").trim(),
@@ -919,6 +927,12 @@ function carregarRotativos(ss, associados, verTudo) {
       inadimplenciaDias: a ? a.inadimplenciaDias : 0,
       tempoAssociadoAnos: a ? a.tempoAssociadoAnos : 0,
       limiteBase: a ? a.limiteAtual : 0,
+      limiteCartao: a ? a.limiteCartao : 0,
+      mediaIrc: a ? a.mediaIrc : 0,
+      depVista: a ? a.depVista : 0,
+      valorRdc: a ? a.valorRdc : 0,
+      valorLca: a ? a.valorLca : 0,
+      valorPoupanca: a ? a.valorPoupanca : 0,
       sugestaoMotor: a ? a.sugestaoMotor : 0,
       status: a ? a.status : "",
       novoLimiteConfirmado: a ? a.novoLimiteConfirmado : null,
@@ -1094,7 +1108,12 @@ function importarBaseAssociados(nomeArquivo, conteudoTexto, primeiroLote) {
       limCartao:  achar(function(x) { return x.indexOf("limite cartao credito") !== -1; }),
       gerente:    achar(function(x) { return x.indexOf("gerente responsavel") !== -1; }),
       tipoPessoa: achar(function(x) { return x === "tipo pessoa"; }),
-      dataBase:   achar(function(x) { return x === "data base"; })
+      dataBase:   achar(function(x) { return x === "data base"; }),
+      mediaIrc:   achar(function(x) { return x.indexOf("media") !== -1 && x.indexOf("irc") !== -1; }),
+      depVista:   achar(function(x) { return x === "dep. vista"; }),
+      rdc:        achar(function(x) { return x.indexOf("valor rdc") !== -1; }),
+      lca:        achar(function(x) { return x.indexOf("valor lca") !== -1; }),
+      poupanca:   achar(function(x) { return x.indexOf("valor poupanca") !== -1; })
     };
 
     if (col.conta === -1 || col.nome === -1) {
@@ -1152,6 +1171,11 @@ function importarBaseAssociados(nomeArquivo, conteudoTexto, primeiroLote) {
       set("Uso Cheque Especial", din(cols, col.usoCE));
       set("SCR 12 Meses", din(cols, col.scr12));
       set("SCR Uso Limite", din(cols, col.scrUso));
+      set("Média IRC", din(cols, col.mediaIrc));
+      set("Dep Vista", din(cols, col.depVista));
+      set("Valor RDC", din(cols, col.rdc));
+      set("Valor LCA", din(cols, col.lca));
+      set("Valor Poupança", din(cols, col.poupanca));
       novas.push(arr);
     }
 
